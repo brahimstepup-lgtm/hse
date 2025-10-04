@@ -1,0 +1,5 @@
+{
+  "name": "HSE Report Generator",
+  "description": "An application for HSE officers to report and analyze safety issues in a factory using AI. Users can upload an image, describe the issue, and specify the location to generate a detailed safety report.",
+  "requestFramePermissions": []
+}
