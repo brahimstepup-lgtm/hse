@@ -1,0 +1,6 @@
+<!doctype html><meta charset=utf-8><title>Visuels</title><body style="background:#16181b;color:#fff;font:16px sans-serif">
+<div id=st style="color:#f2c230;padding:8px">-</div>
+<script>
+["01-couverture","06-signalisation","07-parking","08-epi","09-carte-hse"].forEach(n=>{const b=document.createElement('button');b.textContent=n;b.style.cssText='margin:6px;padding:10px;font-size:16px';
+b.onclick=async()=>{try{const img=new Image();img.src=n+'.jpg';await img.decode();const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext('2d').drawImage(img,0,0);const bl=await new Promise(r=>c.toBlob(r,'image/png'));await navigator.clipboard.write([new ClipboardItem({'image/png':bl})]);st.textContent='Copié '+n}catch(e){st.textContent='Erreur '+e}};document.body.append(b)});
+</script>
