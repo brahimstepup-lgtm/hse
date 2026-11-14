@@ -79,7 +79,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     }
 
     /* ---------- Safety Tags Pro ---------- */
-    private fun setPro(v: Boolean) { isPro = v; prefs.proCached = v }
+    private fun updatePro(v: Boolean) { isPro = v; prefs.proCached = v }
 
     /** Ouvre la présentation Pro si l'utilisateur n'est pas Pro. */
     fun requirePro(): Boolean { if (!isPro) showPro = true; return isPro }
@@ -93,13 +93,13 @@ class MainVm(app: Application) : AndroidViewModel(app) {
 
     fun refreshPro(activity: Activity, showResult: Boolean = false) = viewModelScope.launch {
         if (userEmail.isBlank() || !ProApi.configured) {
-            setPro(false)
+            updatePro(false)
             if (showResult) toast("Connectez-vous avec Google pour activer Pro.")
             return@launch
         }
         val r = runCatching { ProApi.status(token(activity)) }
         r.onSuccess { (pro, _) ->
-            setPro(pro)
+            updatePro(pro)
             if (showResult) toast(if (pro) "✅ Safety Tags Pro est actif sur ce compte" else "Ce compte est en version gratuite.")
         }.onFailure { if (showResult) toast(it.message ?: "Vérification impossible") }
     }
@@ -110,7 +110,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         prefs.userName = u.name; prefs.userEmail = u.email
         userName = u.name; userEmail = u.email
         idToken = u.idToken; tokenAt = System.currentTimeMillis()
-        if (ProApi.configured) runCatching { ProApi.status(u.idToken) }.onSuccess { setPro(it.first) }
+        if (ProApi.configured) runCatching { ProApi.status(u.idToken) }.onSuccess { updatePro(it.first) }
         var c = cfg
         if (c.constatePar.isBlank()) c = c.copy(constatePar = u.name)
         if (c.signature.isBlank()) c = c.copy(signature = u.name)
@@ -126,7 +126,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     fun signOut(ctx: Context) = viewModelScope.launch {
         Auth.signOut(ctx)
         prefs.userName = ""; prefs.userEmail = ""; userName = ""; userEmail = ""
-        idToken = ""; tokenAt = 0L; setPro(false)
+        idToken = ""; tokenAt = 0L; updatePro(false)
         prefs.onboarded = false; onboarded = false
     }
 
