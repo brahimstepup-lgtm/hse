@@ -21,10 +21,10 @@ Le développeur de l'application ne collecte, ne reçoit et ne vend aucune donn�
 Désinstaller l'application supprime toutes les données stockées sur le téléphone. Les données envoyées dans votre Google Sheet ou Drive restent sous votre contrôle dans votre compte Google.
 
 ## Contact
-Pour toute question : brahimstepup@gmail.com
+Pour toute question : utilisez l’adresse de contact indiquée sur la fiche Google Play de l’application.
 
 ---
 
 # Privacy policy — Safety Tags (English)
 
-Safety Tags stores the tags, photos, contacts and settings you enter **on your device**. Optionally, it sends them to **your own** Google Sheet/Drive through a script you deploy, and, only if you add your own API key and tap "Fill with AI", sends the photo and note to the Anthropic API. The developer collects no data; there are no ads, analytics or tracking. Uninstalling the app deletes all on-device data. Contact: brahimstepup@gmail.com
+Safety Tags stores the tags, photos, contacts and settings you enter **on your device**. Optionally, it sends them to **your own** Google Sheet/Drive through a script you deploy, and, only if you add your own API key and tap "Fill with AI", sends the photo and note to the Anthropic API. The developer collects no data; there are no ads, analytics or tracking. Uninstalling the app deletes all on-device data. Contact: see the developer email on the Google Play listing.
