@@ -96,8 +96,8 @@ function rTag_(ss, r, row) {
   return {
     row: row, n: String(r[0]), date: rFmt_(ss, r[1], 'yyyy-MM-dd HH:mm'), cible: rFmt_(ss, r[2], 'dd/MM/yyyy'),
     type: String(r[3]), grav: String(r[4]).replace(/[^A-Za-zÀ-ÿ]/g, ''), empl: String(r[5]), zone: String(r[6]),
-    desc: String(r[7]), risque: String(r[8]), action: String(r[9]), prop: String(r[10]), photo: '',
-    statut: /ferm|clôtur|clotur|closed/i.test(String(r[12])) ? 'Clôturé' : 'Ouvert', resp: String(r[13]), apres: ''
+    desc: String(r[7]), risque: String(r[8]), action: String(r[9]), prop: String(r[10]), photo: String(r[11] || ''),
+    statut: /ferm|clôtur|clotur|closed/i.test(String(r[12])) ? 'Clôturé' : 'Ouvert', resp: String(r[13]), apres: String(r[14] || '')
   };
 }
 
@@ -119,12 +119,12 @@ function rAdd_(ss, p) {
     var n = parseInt(t.n, 10) || rNext_(sh, last);
     sh.getRange(row, 1, 1, 14).setValues([[
       n, rDate_(t.date), rDate_(t.cible), t.type || '', R_GRAV[t.grav] || t.grav || '', t.empl || '', t.zone || '',
-      t.desc || '', t.risque || '', t.action || '', t.prop || '', '',
+      t.desc || '', t.risque || '', t.action || '', t.prop || '', driveLink_(p.photoLink),
       t.statut === 'Clôturé' ? '✅ Fermé' : '🟥 Ouvert', t.resp || ''
     ]]);
     sh.getRange(row, 2).setNumberFormat('yyyy-mm-dd h:mm');
     sh.getRange(row, 3).setNumberFormat('dd/mm/yyyy');
-    return { n: n, row: row, photo: '' };
+    return { n: n, row: row, photo: driveLink_(p.photoLink) };
   } finally { lock.releaseLock(); }
 }
 
@@ -146,7 +146,9 @@ function rClose_(ss, p) {
   var sh = rTab_(ss);
   var rows = (p.rows || []).map(Number).filter(function (r) { return r >= RELAY.FIRST_ROW; });
   rows.forEach(function (r) { sh.getRange(r, R_COLS.statut).setValue('✅ Fermé'); });
-  return { closed: rows.length, photoAfter: '' };
+  var after = driveLink_(p.photoAfterLink);
+  if (after && rows.length === 1) sh.getRange(rows[0], R_COLS.apres).setValue(after);
+  return { closed: rows.length, photoAfter: after };
 }
 
 function rUpdate_(ss, p) {
@@ -164,3 +166,9 @@ function rUpdate_(ss, p) {
 }
 
 function rPhoto_() { return { base64: '' }; }
+
+/** N'accepte que des liens Google Drive (photo envoyée par l'application dans le Drive de l'utilisateur). */
+function driveLink_(v) {
+  v = String(v || '');
+  return /^https:\/\/drive\.google\.com\/file\/d\/[-\w]{20,}\/view$/.test(v) ? v : '';
+}

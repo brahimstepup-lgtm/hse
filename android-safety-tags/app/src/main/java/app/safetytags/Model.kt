@@ -220,6 +220,12 @@ class Prefs(ctx: Context) {
             java.util.Locale.getDefault().language.let { if (it == "en" || it == "ar") it else "fr" }
         }
         set(v) = put("lang", v)
+    var driveFolder: String
+        get() = get("driveFolder")
+        set(v) = put("driveFolder", v)
+    var gallery: Boolean
+        get() = get("gallery", "1") == "1"
+        set(v) = put("gallery", if (v) "1" else "0")
     var mailApp: String
         get() = get("mailApp", Share.DEFAULT_MAIL_APP)
         set(v) = put("mailApp", v)

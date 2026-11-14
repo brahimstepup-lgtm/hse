@@ -16,6 +16,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         vm.host = java.lang.ref.WeakReference(this)
+        DrivePhotos.launcher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) {
+            DrivePhotos.onAuthResult(this, it.data)
+        }
         if (savedInstanceState == null) handleShare(intent)
         setContent { AppTheme { AppRoot(vm) } }
     }

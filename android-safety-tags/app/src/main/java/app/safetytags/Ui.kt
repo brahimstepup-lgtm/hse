@@ -69,6 +69,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -815,7 +816,7 @@ fun SettingsScreen(vm: MainVm) {
         if (url.contains("docs.google.com/spreadsheets/")) {
             if (vm.userEmail.isBlank()) Text(tr("Connectez-vous avec Google (Réglages › Compte) pour utiliser le lien du Sheet."),
                 style = MaterialTheme.typography.bodySmall, color = Color(0xFFC62828))
-            Text(tr("Avec un lien de Sheet, les photos ne sont pas copiées dans Drive : elles restent sur la fiche envoyée par email."),
+            Text(tr("Avec un lien de Sheet, les photos sont enregistrées dans votre Google Drive (dossier « Safety Tags – photos ») et leur lien est écrit dans la colonne Photo."),
                 style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         } else OutlinedTextField(token, { token = it }, label = { Text(tr("Jeton")) }, singleLine = true,
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
@@ -825,6 +826,13 @@ fun SettingsScreen(vm: MainVm) {
         }
         Text(if (vm.connected) tr("✅ Connecté au Google Sheet") else if (vm.prefs.sheetMode) tr("Non connecté") else tr("Mode local"),
             color = if (vm.connected) Color(0xFF2E7D32) else Color.Gray)
+
+        Section(tr("Photos"))
+        var gal by remember { mutableStateOf(vm.prefs.gallery) }
+        Row(Modifier.fillMaxWidth().clickable { gal = !gal; vm.prefs.gallery = gal }, verticalAlignment = Alignment.CenterVertically) {
+            Text(tr("Copier les photos dans la Galerie (album « Safety Tags »)"), Modifier.weight(1f))
+            Switch(checked = gal, onCheckedChange = { gal = it; vm.prefs.gallery = it })
+        }
 
         Section(tr("Abonnement"))
         Row(verticalAlignment = Alignment.CenterVertically) {

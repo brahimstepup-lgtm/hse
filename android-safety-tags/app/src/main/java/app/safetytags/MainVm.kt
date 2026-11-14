@@ -251,17 +251,34 @@ class MainVm(app: Application) : AndroidViewModel(app) {
 
     fun acceptLearning(l: Learn) { saveConfig(Rules.apply(cfg, l)); learn = null; toast(tr("Ajouté à vos réglages")) }
 
+    /** Envoie une photo dans le Drive de l'utilisateur (mode « lien du Sheet »). */
+    private suspend fun drivePhoto(b: Bitmap, name: String): String? {
+        val act = host?.get() ?: return null
+        return runCatching {
+            val t = DrivePhotos.token(act) ?: throw IOException(tr("autorisation Google Drive refusée"))
+            task(tr("Envoi de la photo dans Google Drive…")) { DrivePhotos.upload(t, prefs, Img.scaleMax(b, 1600), name) }
+        }.onFailure { toast(tr("Photo non envoyée sur Drive : {0}", it.message ?: "")) }.getOrNull()
+    }
+
+    /** Copie dans la Galerie (album « Safety Tags »), si activé dans Réglages. */
+    private suspend fun galleryCopy(b: Bitmap?, name: String) {
+        if (b == null || !prefs.gallery) return
+        withContext(Dispatchers.IO) { Gallery.save(getApplication(), b, name) }
+    }
+
     fun save() = viewModelScope.launch {
         if (savedRow != 0) { toast(tr("Déjà enregistré.")); return@launch }
         if (form.desc.isBlank()) { toast(tr("La description est obligatoire.")); return@launch }
         if (prefs.sheetMode) {
             val body = JSONObject().put("tag", form.toApi())
             photo?.let { body.put("photo", Img.toBase64(Img.scaleMax(it, 1600), 88)) }
+            if (prefs.sheetLink) photo?.let { b -> drivePhoto(b, "${form.n}.Référence Photo.jpg")?.let { body.put("photoLink", it) } }
             val d = task(if (prefs.sheetLink) tr("Enregistrement dans le Google Sheet…") else tr("Enregistrement dans le Sheet et Drive…")) { api.call("add", body).getJSONObject("data") } ?: return@launch
             savedRow = d.optInt("row")
             nextNumber = d.optInt("n") + 1
             edit(form.copy(n = d.optString("n"), row = savedRow, photo = d.optString("photo")))
             toast(tr("Tag N° {0} enregistré dans le Sheet (ligne {1})", form.n, savedRow))
+            galleryCopy(photo, "Tag_${form.n}.jpg")
         } else {
             val saved = task(tr("Enregistrement sur le téléphone…")) {
                 withContext(Dispatchers.IO) {
@@ -278,6 +295,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
             nextNumber = (saved.n.toIntOrNull() ?: 0) + 1
             edit(form.copy(n = saved.n, row = saved.row, photo = saved.photo))
             toast(tr("Tag N° {0} enregistré sur le téléphone", saved.n))
+            galleryCopy(photo, "Tag_${saved.n}.jpg")
         }
         proposeLearning()
         if (open.isNotEmpty()) loadOpen()
@@ -357,6 +375,11 @@ class MainVm(app: Application) : AndroidViewModel(app) {
 
     private suspend fun photoOf(t: Tag): Bitmap? = if (!prefs.sheetMode)
         withContext(Dispatchers.IO) { if (t.photo.isNotBlank() && File(t.photo).exists()) BitmapFactory.decodeFile(t.photo) else null }
+    else if (prefs.sheetLink) runCatching {
+        val act = host?.get()
+        if (t.photo.isBlank() || act == null) null
+        else DrivePhotos.token(act)?.let { DrivePhotos.download(it, t.photo) }
+    }.getOrNull()
     else runCatching {
         val b64 = api.call("photo", JSONObject().put("row", t.row)).getJSONObject("data").optString("base64")
         if (b64.isBlank()) null else Img.fromBase64(b64)
@@ -376,6 +399,10 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         val ok = if (prefs.sheetMode) {
             val body = JSONObject().put("rows", JSONArray(rows))
             after?.let { body.put("photoAfter", Img.toBase64(Img.scaleMax(it, 1600), 88)) }
+            if (prefs.sheetLink && after != null && rows.size == 1) {
+                val n = open.firstOrNull { it.row == rows[0] }?.n ?: rows[0].toString()
+                drivePhoto(after, "$n.Photo après.jpg")?.let { body.put("photoAfterLink", it) }
+            }
             task(tr("Clôture en cours…")) { api.call("close", body) } != null
         } else {
             withContext(Dispatchers.IO) {
@@ -390,6 +417,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
             true
         }
         if (!ok) return@launch
+        if (after != null && rows.size == 1) galleryCopy(after, "Tag_${open.firstOrNull { it.row == rows[0] }?.n ?: rows[0]}_apres.jpg")
         val set = rows.toSet()
         open = open.filter { it.row !in set }
         toast(tr("{0} tag(s) clôturé(s)", rows.size))

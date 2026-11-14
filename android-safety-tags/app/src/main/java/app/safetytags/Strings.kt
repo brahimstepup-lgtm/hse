@@ -277,6 +277,14 @@ object L10n {
           "يجب مشاركة الـ Sheet بصلاحية « محرر »: في Google Sheets › مشاركة › الوصول العام › « أي شخص لديه الرابط » › محرر (أو شاركه كمحرر مع حساب Google الخاص بك). يلزم تسجيل الدخول بـ Google. تُضاف البطاقات في علامة التبويب « Tags »."),
         t("Connectez-vous avec Google (Réglages › Compte) pour utiliser le lien du Sheet.", "Sign in with Google (Settings › Account) to use the Sheet link.", "سجّل الدخول بـ Google (الإعدادات › الحساب) لاستخدام رابط الـ Sheet."),
         t("Avec un lien de Sheet, les photos ne sont pas copiées dans Drive : elles restent sur la fiche envoyée par email.", "With a Sheet link, photos are not copied to Drive: they stay on the tag sheet sent by email.", "مع رابط الـ Sheet لا تُنسخ الصور إلى Drive: تبقى على البطاقة المرسلة بالبريد."),
+        t("Avec un lien de Sheet, les photos sont enregistrées dans votre Google Drive (dossier « Safety Tags – photos ») et leur lien est écrit dans la colonne Photo.",
+          "With a Sheet link, photos are saved in your Google Drive (“Safety Tags – photos” folder) and their link is written in the Photo column.",
+          "مع رابط الـ Sheet تُحفظ الصور في Google Drive الخاص بك (مجلد « Safety Tags – photos ») ويُكتب رابطها في عمود الصورة."),
+        t("Photos", "Photos", "الصور"),
+        t("Copier les photos dans la Galerie (album « Safety Tags »)", "Copy photos to the Gallery (“Safety Tags” album)", "نسخ الصور إلى المعرض (ألبوم « Safety Tags »)"),
+        t("Envoi de la photo dans Google Drive…", "Uploading the photo to Google Drive…", "جارٍ رفع الصورة إلى Google Drive…"),
+        t("Photo non envoyée sur Drive : {0}", "Photo not uploaded to Drive: {0}", "لم تُرفع الصورة إلى Drive: {0}"),
+        t("autorisation Google Drive refusée", "Google Drive permission denied", "تم رفض إذن Google Drive"),
         t("Enregistrement dans le Google Sheet…", "Saving to the Google Sheet…", "جارٍ الحفظ في Google Sheet…")
     )
 
