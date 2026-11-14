@@ -68,6 +68,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -766,6 +767,22 @@ fun SettingsScreen(vm: MainVm) {
             }
         }
         OutlinedButton(onClick = { set(c.copy(regles = c.regles + Regle("", "", ""))) }) { Text("Ajouter une règle") }
+
+        Section("Application d’email")
+        var mailApp by remember { mutableStateOf(vm.prefs.mailApp) }
+        val apps = remember { Share.mailApps(ctx) }
+        val choices = (listOf(Share.DEFAULT_MAIL_APP to Share.appLabel(ctx, Share.DEFAULT_MAIL_APP)) +
+            apps.map { it.second to it.first } + listOf(Share.ASK to Share.appLabel(ctx, Share.ASK))).distinctBy { it.first }
+        choices.forEach { (pkg, label) ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
+                .clickable { mailApp = pkg; vm.prefs.mailApp = pkg }) {
+                RadioButton(selected = mailApp == pkg, onClick = { mailApp = pkg; vm.prefs.mailApp = pkg })
+                Text(label + if (pkg == Share.DEFAULT_MAIL_APP) " (par défaut)" else "")
+            }
+        }
+        if (mailApp != Share.ASK && apps.none { it.second == mailApp })
+            Text("Cette application n’est pas installée : le choix de l’application sera demandé à l’envoi.",
+                style = MaterialTheme.typography.bodySmall, color = Color.Gray)
 
         Section("Destinataires des emails")
         Text("Noms (de la liste Personnes) ou adresses, séparés par « ; ».", style = MaterialTheme.typography.bodySmall, color = Color.Gray)

@@ -215,6 +215,9 @@ class Prefs(ctx: Context) {
     var token: String
         get() = get("token")
         set(v) = put("token", v.trim())
+    var mailApp: String
+        get() = get("mailApp", Share.DEFAULT_MAIL_APP)
+        set(v) = put("mailApp", v)
     var proCached: Boolean
         get() = get("pro") == "1"
         set(v) = put("pro", if (v) "1" else "")

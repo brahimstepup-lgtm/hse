@@ -322,7 +322,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         val missing = (miss1 + miss2).distinct()
         if (missing.isNotEmpty()) toast("Email inconnu pour : ${missing.joinToString(", ")} (Réglages › Personnes)")
         val uri = bmp?.let { Share.savePng(ctx, it, fileName) }
-        Share.email(ctx, to, cc, subject, body, uri)
+        Share.email(ctx, to, cc, subject, body, uri, prefs.mailApp)
     }
 
     fun emailNew(ctx: Context) {

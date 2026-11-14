@@ -180,10 +180,29 @@ object Share {
         return FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
     }
 
-    private fun hasOutlook(ctx: Context) = runCatching { ctx.packageManager.getPackageInfo(OUTLOOK, 0); true }.getOrDefault(false)
+    const val DEFAULT_MAIL_APP = OUTLOOK
+    const val ASK = "ask"
+
+    private fun installed(ctx: Context, pkg: String) = runCatching { ctx.packageManager.getPackageInfo(pkg, 0); true }.getOrDefault(false)
+
+    /** Applications d'email installées : (nom affiché, package). */
+    fun mailApps(ctx: Context): List<Pair<String, String>> {
+        val pm = ctx.packageManager
+        return pm.queryIntentActivities(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")), 0)
+            .map { it.loadLabel(pm).toString() to it.activityInfo.packageName }
+            .distinctBy { it.second }
+            .sortedBy { it.first.lowercase() }
+    }
+
+    fun appLabel(ctx: Context, pkg: String): String = when (pkg) {
+        ASK -> "Demander à chaque fois"
+        else -> runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(pkg, 0)).toString() }
+            .getOrDefault(if (pkg == OUTLOOK) "Outlook" else pkg)
+    }
 
     /** Ouvre Outlook (ou le choix d'application) avec destinataires, objet, texte et fiche jointe. */
-    fun email(ctx: Context, to: List<String>, cc: List<String>, subject: String, body: String, attach: Uri?) {
+    /** Ouvre l'application d'email choisie dans Réglages (Outlook par défaut). */
+    fun email(ctx: Context, to: List<String>, cc: List<String>, subject: String, body: String, attach: Uri?, app: String = DEFAULT_MAIL_APP) {
         val i = Intent(Intent.ACTION_SEND).apply {
             type = if (attach != null) "image/png" else "message/rfc822"
             putExtra(Intent.EXTRA_EMAIL, to.toTypedArray())
@@ -195,8 +214,8 @@ object Share {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
         }
-        if (hasOutlook(ctx)) {
-            i.setPackage(OUTLOOK)
+        if (app != ASK && installed(ctx, app)) {
+            i.setPackage(app)
             ctx.startActivity(i)
         } else {
             ctx.startActivity(Intent.createChooser(i, "Envoyer l’email"))
