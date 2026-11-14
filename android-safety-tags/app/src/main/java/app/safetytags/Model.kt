@@ -59,7 +59,7 @@ object Lists {
     )
     val etages = listOf(
         "étage 1", "étage 0", "étage -1", "étage Brovind", "magasin mp", "bloc vestiaire",
-        "bloc administratif", "voie exterieur", "les utilités"
+        "voie exterieur", "les utilités"
     )
     val categories = listOf("Production", "Technique", "Bâtiment", "Logistique", "Incendie / Utilités", "HSE")
     val gravites = listOf("Élevée", "Moyenne", "Faible")

@@ -2,8 +2,9 @@
  * Safety Tags — pont entre l'application Android et le Google Sheet des tags.
  *
  * Installation (une seule fois) :
- *  1. Ouvrir le Google Sheet des tags > Extensions > Apps Script.
- *  2. Coller ce fichier dans Code.gs, renseigner CONFIG.FOLDER_ID (dossier Drive des photos)
+ *  1. Ouvrir https://script.google.com > Nouveau projet (projet autonome, pour ne pas
+ *     toucher aux scripts déjà liés au Sheet).
+ *  2. Coller ce fichier dans Code.gs, renseigner CONFIG.SHEET_ID et CONFIG.FOLDER_ID
  *     et, si besoin, les listes DEFAULT_* plus bas.
  *  3. Exécuter la fonction « setup » (autoriser l'accès). Le jeton s'affiche dans le journal.
  *  4. Déployer > Nouveau déploiement > Application Web :
@@ -12,6 +13,7 @@
  */
 
 var CONFIG = {
+  SHEET_ID: 'ID_DU_GOOGLE_SHEET',
   TAB: 'plan',               // onglet des tags
   FIRST_ROW: 8,              // première ligne de données
   FOLDER_ID: 'ID_DU_DOSSIER_DRIVE_DES_PHOTOS'
@@ -36,6 +38,8 @@ var COLS = { n: 1, date: 2, cible: 3, type: 4, grav: 5, empl: 6, zone: 7, desc: 
 var GRAV = { 'Élevée': '🟥 Élevée', 'Moyenne': '🟧 Moyenne', 'Faible': '🟩 Faible' };
 
 /* ---------- installation ---------- */
+function ss_() { return SpreadsheetApp.openById(CONFIG.SHEET_ID); }
+
 function setup() {
   var props = PropertiesService.getScriptProperties();
   var t = props.getProperty('TOKEN');
@@ -48,7 +52,7 @@ function setup() {
 }
 
 function ensureTab_(name, header, rows) {
-  var ss = SpreadsheetApp.getActive();
+  var ss = ss_();
   var sh = ss.getSheetByName(name);
   if (sh) return sh;
   sh = ss.insertSheet(name);
@@ -86,8 +90,8 @@ function route_(p) {
 }
 
 /* ---------- utilitaires ---------- */
-function plan_() { return SpreadsheetApp.getActive().getSheetByName(CONFIG.TAB); }
-function tz_() { return SpreadsheetApp.getActive().getSpreadsheetTimeZone(); }
+function plan_() { return ss_().getSheetByName(CONFIG.TAB); }
+function tz_() { return ss_().getSpreadsheetTimeZone(); }
 
 function lastRow_(sh) {
   var vals = sh.getRange(1, 1, sh.getMaxRows(), 1).getValues();
@@ -106,7 +110,7 @@ function nextNumber_(sh, last) {
 }
 
 function table_(name) {
-  var sh = SpreadsheetApp.getActive().getSheetByName(name);
+  var sh = ss_().getSheetByName(name);
   if (!sh || sh.getLastRow() < 2) return [];
   return sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues()
     .filter(function (r) { return String(r[0]).trim() !== ''; });
