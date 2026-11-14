@@ -15,6 +15,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        vm.host = java.lang.ref.WeakReference(this)
         if (savedInstanceState == null) handleShare(intent)
         setContent { AppTheme { AppRoot(vm) } }
     }

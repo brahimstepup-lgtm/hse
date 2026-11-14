@@ -56,10 +56,17 @@ object Http {
 }
 
 /** Client du script Google Apps Script relié au Sheet. */
-class Api(private val prefs: Prefs) {
+class Api(private val prefs: Prefs, private val idToken: suspend () -> String) {
     suspend fun call(action: String, body: JSONObject = JSONObject()): JSONObject {
         val url = prefs.url
         if (!url.startsWith("https://")) throw IOException(tr("Renseignez l’URL du script dans Réglages."))
+        if (prefs.sheetLink) {
+            // Lien direct du Google Sheet : passe par le serveur Safety Tags (compte Google requis).
+            if (!ProApi.configured) throw IOException(tr("Renseignez l’URL du script dans Réglages."))
+            body.remove("photo"); body.remove("photoAfter")
+            body.put("action", "sheet").put("op", action).put("sheetUrl", url).put("idToken", idToken())
+            return Http.postScript(BuildConfig.PRO_API_URL, body)
+        }
         body.put("action", action)
         body.put("token", prefs.token)
         return Http.postScript(url, body)

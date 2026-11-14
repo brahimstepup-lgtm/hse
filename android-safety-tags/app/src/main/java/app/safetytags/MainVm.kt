@@ -27,7 +27,12 @@ import java.io.FileOutputStream
 
 class MainVm(app: Application) : AndroidViewModel(app) {
     val prefs = Prefs(app)
-    private val api = Api(prefs)
+    /** Activité au premier plan (pour renouveler le jeton Google sans écran). */
+    var host: java.lang.ref.WeakReference<Activity>? = null
+    private val api = Api(prefs) {
+        if (userEmail.isBlank()) throw IOException(tr("Connectez-vous avec Google (Réglages › Compte) pour utiliser le lien du Sheet."))
+        token(host?.get() ?: throw IOException(tr("Reconnectez-vous avec Google (Réglages › Compte).")))
+    }
     private val local = LocalStore(app)
     private val msgChannel = Channel<String>(Channel.BUFFERED)
     val messages = msgChannel.receiveAsFlow()
@@ -252,7 +257,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         if (prefs.sheetMode) {
             val body = JSONObject().put("tag", form.toApi())
             photo?.let { body.put("photo", Img.toBase64(Img.scaleMax(it, 1600), 88)) }
-            val d = task(tr("Enregistrement dans le Sheet et Drive…")) { api.call("add", body).getJSONObject("data") } ?: return@launch
+            val d = task(if (prefs.sheetLink) tr("Enregistrement dans le Google Sheet…") else tr("Enregistrement dans le Sheet et Drive…")) { api.call("add", body).getJSONObject("data") } ?: return@launch
             savedRow = d.optInt("row")
             nextNumber = d.optInt("n") + 1
             edit(form.copy(n = d.optString("n"), row = savedRow, photo = d.optString("photo")))

@@ -809,8 +809,15 @@ fun SettingsScreen(vm: MainVm) {
         Section(tr("Google Sheet (optionnel)"))
         Text(tr("Sans Google Sheet, les tags sont gardés sur ce téléphone (export CSV possible)."),
             style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-        Field(tr("URL du script (…/exec)"), url, { url = it })
-        OutlinedTextField(token, { token = it }, label = { Text(tr("Jeton")) }, singleLine = true,
+        Field(tr("Lien du Google Sheet (ou URL du script …/exec)"), url, { url = it.trim() })
+        Text(tr("Le Sheet doit être partagé avec l’accès « Éditeur » : dans Google Sheets › Partager › Accès général › « Toute personne disposant du lien » › Éditeur (ou partagez-le en Éditeur avec votre compte Google). Connexion Google requise. Les tags sont ajoutés dans l’onglet « Tags »."),
+            style = MaterialTheme.typography.bodySmall, color = Color(0xFFE65100))
+        if (url.contains("docs.google.com/spreadsheets/")) {
+            if (vm.userEmail.isBlank()) Text(tr("Connectez-vous avec Google (Réglages › Compte) pour utiliser le lien du Sheet."),
+                style = MaterialTheme.typography.bodySmall, color = Color(0xFFC62828))
+            Text(tr("Avec un lien de Sheet, les photos ne sont pas copiées dans Drive : elles restent sur la fiche envoyée par email."),
+                style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        } else OutlinedTextField(token, { token = it }, label = { Text(tr("Jeton")) }, singleLine = true,
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { vm.prefs.url = url; vm.prefs.token = token; vm.testSheet() }) { Text(tr("Enregistrer et tester")) }

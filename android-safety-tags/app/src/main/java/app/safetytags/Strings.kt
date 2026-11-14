@@ -270,7 +270,14 @@ object L10n {
         t("{0} tag(s) · {1} en retard · {2} de gravité élevée", "{0} tag(s) · {1} overdue · {2} high severity", "{0} بطاقة · {1} متأخرة · {2} عالية الخطورة"),
         t("Par responsable : {0}", "By owner: {0}", "حسب المسؤول: {0}"),
         t("EN RETARD", "OVERDUE", "متأخرة"),
-        t(" à ", " at ", " على الساعة ")
+        t(" à ", " at ", " على الساعة "),
+        t("Lien du Google Sheet (ou URL du script …/exec)", "Google Sheet link (or script URL …/exec)", "رابط Google Sheet (أو رابط السكربت ‎…/exec)"),
+        t("Le Sheet doit être partagé avec l’accès « Éditeur » : dans Google Sheets › Partager › Accès général › « Toute personne disposant du lien » › Éditeur (ou partagez-le en Éditeur avec votre compte Google). Connexion Google requise. Les tags sont ajoutés dans l’onglet « Tags ».",
+          "The Sheet must be shared with “Editor” access: in Google Sheets › Share › General access › “Anyone with the link” › Editor (or share it as Editor with your Google account). Google sign-in required. Tags are added to the “Tags” tab.",
+          "يجب مشاركة الـ Sheet بصلاحية « محرر »: في Google Sheets › مشاركة › الوصول العام › « أي شخص لديه الرابط » › محرر (أو شاركه كمحرر مع حساب Google الخاص بك). يلزم تسجيل الدخول بـ Google. تُضاف البطاقات في علامة التبويب « Tags »."),
+        t("Connectez-vous avec Google (Réglages › Compte) pour utiliser le lien du Sheet.", "Sign in with Google (Settings › Account) to use the Sheet link.", "سجّل الدخول بـ Google (الإعدادات › الحساب) لاستخدام رابط الـ Sheet."),
+        t("Avec un lien de Sheet, les photos ne sont pas copiées dans Drive : elles restent sur la fiche envoyée par email.", "With a Sheet link, photos are not copied to Drive: they stay on the tag sheet sent by email.", "مع رابط الـ Sheet لا تُنسخ الصور إلى Drive: تبقى على البطاقة المرسلة بالبريد."),
+        t("Enregistrement dans le Google Sheet…", "Saving to the Google Sheet…", "جارٍ الحفظ في Google Sheet…")
     )
 
     fun tr(fr: String, vararg args: Any?): String {

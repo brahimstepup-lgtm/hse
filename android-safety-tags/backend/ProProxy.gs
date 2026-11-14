@@ -27,7 +27,8 @@ function doPost(e) {
     var p = JSON.parse(e.postData.contents || '{}');
     var email = verify_(p.idToken);
     var pro = proList_().indexOf(email) >= 0;
-    if (p.action === 'status') out = { ok: true, data: { email: email, pro: pro, model: PRO.MODEL } };
+    if (p.action === 'sheet') out = { ok: true, data: relay_(email, p) };   // voir SheetRelay.gs
+    else if (p.action === 'status') out = { ok: true, data: { email: email, pro: pro, model: PRO.MODEL } };
     else if (p.action === 'ai') {
       if (!pro) throw new Error('Fonction réservée à Safety Tags Pro.');
       out = { ok: true, data: { text: ai_(email, p.prompt, p.image) } };

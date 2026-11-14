@@ -230,6 +230,8 @@ class Prefs(ctx: Context) {
         get() = runCatching { Config.fromJson(JSONObject(get("config", "{}"))) }.getOrDefault(Config())
         set(v) = put("config", v.toJson().toString())
     val sheetMode get() = url.startsWith("https://")
+    /** Lien direct d'un Google Sheet (au lieu de l'URL d'un script Apps Script). */
+    val sheetLink get() = url.contains("docs.google.com/spreadsheets/")
     var userName: String
         get() = get("userName")
         set(v) = put("userName", v)
