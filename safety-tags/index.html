@@ -1,0 +1,48 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Safety Tags</title><style>
+:root{--red:#C62828;--ink:#1f2326;--muted:#5f666b;--bg:#faf8f7;--line:#e7e1dd}
+@media (prefers-color-scheme:dark){:root{--ink:#ecebe9;--muted:#a2a8ad;--bg:#17191b;--line:#33373b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:linear-gradient(135deg,#E53935,#8E0000);color:#fff;padding:40px 20px}
+.w{max-width:760px;margin:0 auto;padding:0 20px}header .w{display:flex;gap:20px;align-items:center;padding:0}
+header svg{border-radius:22px;flex:none}h1{margin:0;font-size:2rem}header p{margin:4px 0 0;opacity:.9}
+main{padding:28px 0 60px}h2{color:var(--red);margin-top:2rem}a{color:var(--red)}ul{padding-left:1.2rem}
+footer{border-top:1px solid var(--line);padding:20px;color:var(--muted);font-size:.9rem;text-align:center}
+</style></head><body><header><div class="w"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="96" height="96">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EF5350"/>
+      <stop offset="1" stop-color="#9A0007"/>
+    </linearGradient>
+    <linearGradient id="tri" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFB300"/>
+      <stop offset="1" stop-color="#FB8C00"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#bg)"/>
+  <g transform="translate(54 55) rotate(-18) scale(1.08) translate(-54 -58)">
+    <!-- ficelle -->
+    <path d="M54,41 C53,32 47,26 38,25" fill="none" stroke="#FFFFFF" stroke-width="2.3" stroke-linecap="round" opacity="0.92"/>
+    <!-- ombre -->
+    <path d="M39,44 L54,29 L69,44 L69,83 Q69,88 64,88 L44,88 Q39,88 39,83 Z" fill="#000000" opacity="0.18" transform="translate(2.5 3)"/>
+    <!-- étiquette -->
+    <path d="M39,44 L54,29 L69,44 L69,83 Q69,88 64,88 L44,88 Q39,88 39,83 Z" fill="#FFFFFF"/>
+    <!-- œillet -->
+    <circle cx="54" cy="41" r="4.2" fill="#B71C1C"/>
+    <circle cx="54" cy="41" r="2.4" fill="#FFFFFF"/>
+    <!-- triangle de danger -->
+    <path d="M54,52 L66.5,74.5 Q67.5,76.5 65.3,76.5 L42.7,76.5 Q40.5,76.5 41.5,74.5 Z" fill="url(#tri)"/>
+    <rect x="52.4" y="58.5" width="3.2" height="10" rx="1.6" fill="#3E2723"/>
+    <circle cx="54" cy="72" r="1.8" fill="#3E2723"/>
+  </g>
+</svg>
+<div><h1>Safety Tags</h1><p>Fiches d’anomalies HSE depuis votre téléphone</p></div></div></header><main class="w">
+<p>Safety Tags aide les animateurs et responsables HSE à signaler et suivre les anomalies sur le terrain : une photo, quelques champs, et la fiche « SAFETY TAG » est prête à être envoyée au responsable.</p>
+<h2>Fonctions</h2><ul>
+<li>Photo de constat (appareil photo, galerie ou partage depuis WhatsApp) et fiche PNG professionnelle, avec le logo de votre entreprise.</li>
+<li>Remplissage assisté par IA (optionnel, avec votre propre clé API).</li>
+<li>Responsable proposé automatiquement selon vos règles (service + zone).</li>
+<li>Listes de zones, types, services et personnes apprises au fil de l’usage, entièrement personnalisables.</li>
+<li>Email prérempli (Outlook ou autre) avec la fiche jointe.</li>
+<li>Suivi des tags ouverts, clôture avec photo après, export CSV.</li>
+<li>Fonctionne sans compte ; connexion Google et Google Sheet en option.</li></ul>
+<p><a href="privacy.html">Politique de confidentialité</a></p></main><footer>Safety Tags · <a href="./">Accueil</a> · <a href="privacy.html">Confidentialité</a></footer></body></html>
