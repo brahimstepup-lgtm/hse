@@ -2,11 +2,18 @@
 
 package app.safetytags
 
+import android.app.Activity
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -102,6 +109,7 @@ fun AppTheme(content: @Composable () -> Unit) {
 
 @Composable
 fun AppRoot(vm: MainVm) {
+    if (!vm.onboarded) { LoginScreen(vm); return }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
@@ -109,7 +117,13 @@ fun AppRoot(vm: MainVm) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(titles[tab], fontWeight = FontWeight.Bold) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(painterResource(R.drawable.logo_app), null, Modifier.size(30.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(titles[tab], fontWeight = FontWeight.Bold)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Red, titleContentColor = Color.White,
                     actionIconContentColor = Color.White),
                 actions = {
@@ -189,6 +203,59 @@ private fun PhotoButtons(onPicked: (Uri) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = { val u = Img.newCaptureUri(ctx); capture = u; camera.launch(u) }) { Text("Appareil photo") }
         OutlinedButton(onClick = { gallery.launch("image/*") }) { Text("Galerie / WhatsApp") }
+    }
+}
+
+/* ---------------- Connexion ---------------- */
+
+@Composable
+fun LoginScreen(vm: MainVm) {
+    val ctx = LocalContext.current
+    val snack = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
+    Scaffold(snackbarHost = { SnackbarHost(snack) }) { pad ->
+        Column(
+            Modifier.fillMaxSize()
+                .background(Brush.linearGradient(listOf(Color(0xFFE53935), Color(0xFF8E0000))))
+                .padding(pad).padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Image(painterResource(R.drawable.logo_app), "Safety Tags",
+                Modifier.size(120.dp).border(3.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(30.dp)))
+            Spacer(Modifier.height(24.dp))
+            Text("Safety Tags", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text("Photographiez une anomalie, générez la fiche HSE\net envoyez-la au responsable.",
+                color = Color.White.copy(alpha = 0.9f), textAlign = TextAlign.Center)
+            Spacer(Modifier.height(48.dp))
+            Button(
+                onClick = { vm.signInGoogle(ctx as Activity) },
+                enabled = vm.busy.isEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF1F1F1F)),
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier.fillMaxWidth().height(54.dp)
+            ) {
+                Box(Modifier.size(26.dp).background(Color.White, CircleShape).border(1.dp, Color(0xFFDADCE0), CircleShape),
+                    contentAlignment = Alignment.Center) {
+                    Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+                Spacer(Modifier.width(12.dp))
+                Text("Continuer avec Google", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            }
+            Text("Connexion ou création de compte en un geste", color = Color.White.copy(alpha = 0.8f),
+                style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
+            Spacer(Modifier.height(20.dp))
+            TextButton(onClick = { vm.finishOnboarding() }) {
+                Text("Continuer sans compte", color = Color.White, fontSize = 15.sp)
+            }
+            if (vm.busy.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp)); LinearProgressIndicator(color = Color.White, modifier = Modifier.fillMaxWidth())
+            }
+            Spacer(Modifier.height(36.dp))
+            Text("Vos tags restent sur votre téléphone ou dans votre propre Google Sheet.",
+                color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+        }
     }
 }
 
@@ -478,7 +545,41 @@ fun SettingsScreen(vm: MainVm) {
     var model by rememberSaveable { mutableStateOf(vm.prefs.aiModel) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { vm.importConfig(ctx, it) } }
 
+    val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { vm.setLogo(ctx, it) } }
+
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Section("Compte")
+        if (vm.userEmail.isNotBlank()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(44.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
+                    Text(vm.userName.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString(""),
+                        color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) { Text(vm.userName, fontWeight = FontWeight.Bold); Text(vm.userEmail, style = MaterialTheme.typography.bodySmall) }
+                TextButton(onClick = { vm.signOut(ctx) }) { Text("Se déconnecter") }
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Non connecté", modifier = Modifier.weight(1f), color = Color.Gray)
+                TextButton(onClick = { vm.signOut(ctx) }) { Text("Se connecter") }
+            }
+        }
+
+        Section("Logo de l’entreprise (haut gauche de la fiche)")
+        vm.logo?.let {
+            Box(Modifier.background(Red, RoundedCornerShape(8.dp)).padding(10.dp)) {
+                Box(Modifier.background(Color.White, RoundedCornerShape(6.dp)).padding(6.dp)) {
+                    Image(it.asImageBitmap(), "Logo", Modifier.height(56.dp))
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { logoPicker.launch("image/*") }) { Text(if (vm.logo == null) "Ajouter un logo" else "Changer le logo") }
+            if (vm.logo != null) OutlinedButton(onClick = { vm.clearLogo() }) { Text("Retirer") }
+        }
+        Text("Conseil : une image PNG à fond transparent ou blanc rend le mieux.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+
         Section("Entreprise et fiche")
         Field("Nom affiché sur la fiche (ex : Usine X · Suivi HSE)", c.organisation, { set(c.copy(organisation = it)) })
         Field("Pied de fiche (optionnel)", c.pied, { set(c.copy(pied = it)) })

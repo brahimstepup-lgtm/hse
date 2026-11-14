@@ -94,7 +94,7 @@ object Fiche {
         return w
     }
 
-    fun render(t: Tag, photo: Bitmap?, cfg: Config): Bitmap {
+    fun render(t: Tag, photo: Bitmap?, cfg: Config, logo: Bitmap? = null): Bitmap {
         val site = cfg.organisation.ifBlank { "Suivi des anomalies HSE" }
         val footer = cfg.pied
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -109,8 +109,20 @@ object Fiche {
 
         // en-tête
         p.color = RED; c.drawRect(0f, 0f, W, top, p)
-        p.color = Color.WHITE; font(p, 40f, true, 0.05f); c.drawText("SAFETY TAG", 36f, 58f, p)
-        font(p, 18f, false); p.alpha = 230; c.drawText(site, 36f, 88f, p); p.alpha = 255
+        var tx = 36f
+        if (logo != null) {
+            // logo de l'entreprise en haut à gauche, sur un cartouche blanc
+            val boxH = 78f; val inner = boxH - 12f
+            val lw = (logo.width.toFloat() / logo.height * inner).coerceAtMost(200f)
+            val lh = lw * logo.height / logo.width
+            val boxW = lw + 12f
+            p.color = Color.WHITE; c.drawRoundRect(RectF(22f, 16f, 22f + boxW, 16f + boxH), 10f, 10f, p)
+            val ly = 16f + (boxH - lh) / 2f
+            c.drawBitmap(logo, null, RectF(28f, ly, 28f + lw, ly + lh), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+            tx = 22f + boxW + 22f
+        }
+        p.color = Color.WHITE; font(p, 40f, true, 0.05f); c.drawText("SAFETY TAG", tx, 58f, p)
+        font(p, 18f, false); p.alpha = 230; c.drawText(site, tx, 88f, p); p.alpha = 255
         font(p, 44f, true); val nt = "N° ${t.n.ifBlank { "—" }}"; val nw = p.measureText(nt) + 44f
         p.color = Color.WHITE; c.drawRoundRect(RectF(W - 36f - nw, 24f, W - 36f, 88f), 8f, 8f, p)
         p.color = RED; c.drawText(nt, W - 36f - nw + 22f, 72f, p)

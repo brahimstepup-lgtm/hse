@@ -225,6 +225,15 @@ class Prefs(ctx: Context) {
         get() = runCatching { Config.fromJson(JSONObject(get("config", "{}"))) }.getOrDefault(Config())
         set(v) = put("config", v.toJson().toString())
     val sheetMode get() = url.startsWith("https://")
+    var userName: String
+        get() = get("userName")
+        set(v) = put("userName", v)
+    var userEmail: String
+        get() = get("userEmail")
+        set(v) = put("userEmail", v)
+    var onboarded: Boolean
+        get() = get("onboarded") == "1"
+        set(v) = put("onboarded", if (v) "1" else "")
 }
 
 /** Tags enregistrés sur le téléphone (utilisé quand aucun Google Sheet n'est connecté). */

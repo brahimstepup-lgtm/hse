@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EF5350"/>
+      <stop offset="1" stop-color="#9A0007"/>
+    </linearGradient>
+    <linearGradient id="tri" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFB300"/>
+      <stop offset="1" stop-color="#FB8C00"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#bg)"/>
+  <g transform="translate(54 55) rotate(-18) scale(1.08) translate(-54 -58)">
+    <!-- ficelle -->
+    <path d="M54,41 C53,32 47,26 38,25" fill="none" stroke="#FFFFFF" stroke-width="2.3" stroke-linecap="round" opacity="0.92"/>
+    <!-- ombre -->
+    <path d="M39,44 L54,29 L69,44 L69,83 Q69,88 64,88 L44,88 Q39,88 39,83 Z" fill="#000000" opacity="0.18" transform="translate(2.5 3)"/>
+    <!-- étiquette -->
+    <path d="M39,44 L54,29 L69,44 L69,83 Q69,88 64,88 L44,88 Q39,88 39,83 Z" fill="#FFFFFF"/>
+    <!-- œillet -->
+    <circle cx="54" cy="41" r="4.2" fill="#B71C1C"/>
+    <circle cx="54" cy="41" r="2.4" fill="#FFFFFF"/>
+    <!-- triangle de danger -->
+    <path d="M54,52 L66.5,74.5 Q67.5,76.5 65.3,76.5 L42.7,76.5 Q40.5,76.5 41.5,74.5 Z" fill="url(#tri)"/>
+    <rect x="52.4" y="58.5" width="3.2" height="10" rx="1.6" fill="#3E2723"/>
+    <circle cx="54" cy="72" r="1.8" fill="#3E2723"/>
+  </g>
+</svg>

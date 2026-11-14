@@ -1,5 +1,6 @@
 package app.safetytags
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -42,6 +43,13 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     var busy by mutableStateOf(""); private set
     var learn by mutableStateOf<Learn?>(null)
 
+    // compte et logo
+    var onboarded by mutableStateOf(prefs.onboarded); private set
+    var userName by mutableStateOf(prefs.userName); private set
+    var userEmail by mutableStateOf(prefs.userEmail); private set
+    private val logoFile = File(app.filesDir, "logo.png")
+    var logo by mutableStateOf<Bitmap?>(if (logoFile.exists()) BitmapFactory.decodeFile(logoFile.absolutePath) else null); private set
+
     // liste des tags ouverts
     var open by mutableStateOf<List<Tag>>(emptyList()); private set
 
@@ -61,6 +69,39 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         busy = label
         return try { block() } catch (e: Exception) { toast(e.message ?: "Erreur"); null } finally { busy = "" }
     }
+
+    /* ---------- compte ---------- */
+    fun signInGoogle(activity: Activity) = viewModelScope.launch {
+        val u = task("Connexion avec Google…") { Auth.signIn(activity) } ?: return@launch
+        prefs.userName = u.name; prefs.userEmail = u.email
+        userName = u.name; userEmail = u.email
+        var c = cfg
+        if (c.constatePar.isBlank()) c = c.copy(constatePar = u.name)
+        if (c.signature.isBlank()) c = c.copy(signature = u.name)
+        if (c.personnes.none { it.email.equals(u.email, true) }) c = c.copy(personnes = c.personnes + Contact(u.name, u.email))
+        saveConfig(c)
+        if (form.par.isBlank()) form = form.copy(par = u.name)
+        finishOnboarding()
+        toast("Bienvenue ${u.name.split(" ").first()} !")
+    }
+
+    fun finishOnboarding() { prefs.onboarded = true; onboarded = true }
+
+    fun signOut(ctx: Context) = viewModelScope.launch {
+        Auth.signOut(ctx)
+        prefs.userName = ""; prefs.userEmail = ""; userName = ""; userEmail = ""
+        prefs.onboarded = false; onboarded = false
+    }
+
+    /* ---------- logo de l'entreprise ---------- */
+    fun setLogo(ctx: Context, uri: Uri) = viewModelScope.launch {
+        val b = withContext(Dispatchers.IO) {
+            Img.load(ctx, uri, 600)?.also { bmp -> FileOutputStream(logoFile).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+        }
+        if (b == null) toast("Image illisible") else { logo = b; fiche = null; toast("Logo enregistré : il apparaîtra sur les fiches") }
+    }
+
+    fun clearLogo() { logoFile.delete(); logo = null; fiche = null }
 
     /* ---------- configuration ---------- */
     fun saveConfig(c: Config) {
@@ -153,7 +194,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         toast("Champs remplis : relisez avant d’enregistrer.")
     }
 
-    fun buildFiche(): Bitmap = Fiche.render(form, photo, cfg).also { fiche = it }
+    fun buildFiche(): Bitmap = Fiche.render(form, photo, cfg, logo).also { fiche = it }
 
     private fun proposeLearning() {
         val l = Rules.learn(cfg, form)
@@ -276,7 +317,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     fun emailExisting(ctx: Context, t: Tag, closed: Boolean = false) = viewModelScope.launch {
         val pic = task("Préparation de la fiche…") { photoOf(t) }
         val tag = t.copy(statut = if (closed) "Clôturé" else t.statut, par = t.par.ifBlank { cfg.constatePar })
-        val bmp = Fiche.render(tag, pic, cfg)
+        val bmp = Fiche.render(tag, pic, cfg, logo)
         val name = "Fiche_Tag_${tag.n}.png"
         if (closed) sendMail(ctx, cfg.toCloture, cfg.ccCloture, "Clôture " + shortTitle(tag), closeBody(tag), bmp, name)
         else sendMail(ctx, tag.resp, cfg.ccOuverture, shortTitle(tag), openBody(tag), bmp, name)
@@ -342,7 +383,9 @@ class MainVm(app: Application) : AndroidViewModel(app) {
 
     fun exportConfig(ctx: Context) {
         val f = File(File(ctx.cacheDir, "exports").apply { mkdirs() }, "safety_tags_reglages.json")
-        f.writeText(cfg.toJson().toString(2))
+        val json = cfg.toJson()
+        logo?.let { json.put("logo", Img.toBase64Png(it)) }
+        f.writeText(json.toString(2))
         val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
         ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
             type = "application/json"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -350,10 +393,18 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     }
 
     fun importConfig(ctx: Context, uri: Uri) = viewModelScope.launch {
-        val c = withContext(Dispatchers.IO) {
-            runCatching { ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { Config.fromJson(JSONObject(it.readText())) } }.getOrNull()
+        val json = withContext(Dispatchers.IO) {
+            runCatching { ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { JSONObject(it.readText()) } }.getOrNull()
         }
-        if (c == null) toast("Fichier de réglages illisible") else { saveConfig(c); toast("Réglages importés") }
+        if (json == null) { toast("Fichier de réglages illisible"); return@launch }
+        saveConfig(Config.fromJson(json))
+        json.optString("logo").takeIf { it.isNotBlank() }?.let { b64 ->
+            Img.fromBase64(b64)?.let { bmp ->
+                withContext(Dispatchers.IO) { FileOutputStream(logoFile).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+                logo = bmp
+            }
+        }
+        toast("Réglages importés")
     }
 }
 

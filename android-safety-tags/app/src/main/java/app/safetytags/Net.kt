@@ -161,6 +161,12 @@ object Img {
         return Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP)
     }
 
+    fun toBase64Png(b: Bitmap): String {
+        val bos = ByteArrayOutputStream()
+        b.compress(Bitmap.CompressFormat.PNG, 100, bos)
+        return Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP)
+    }
+
     fun fromBase64(s: String): Bitmap? = runCatching {
         val bytes = Base64.decode(s, Base64.DEFAULT)
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
