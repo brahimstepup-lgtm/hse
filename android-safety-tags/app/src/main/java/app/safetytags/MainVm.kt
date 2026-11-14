@@ -21,6 +21,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
+import java.time.LocalDate
 import java.io.FileOutputStream
 
 class MainVm(app: Application) : AndroidViewModel(app) {
@@ -50,6 +52,12 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     private val logoFile = File(app.filesDir, "logo.png")
     var logo by mutableStateOf<Bitmap?>(if (logoFile.exists()) BitmapFactory.decodeFile(logoFile.absolutePath) else null); private set
 
+    // Safety Tags Pro
+    var isPro by mutableStateOf(prefs.proCached); private set
+    var showPro by mutableStateOf(false)
+    private var idToken = ""
+    private var tokenAt = 0L
+
     // liste des tags ouverts
     var open by mutableStateOf<List<Tag>>(emptyList()); private set
 
@@ -70,11 +78,39 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         return try { block() } catch (e: Exception) { toast(e.message ?: "Erreur"); null } finally { busy = "" }
     }
 
+    /* ---------- Safety Tags Pro ---------- */
+    private fun setPro(v: Boolean) { isPro = v; prefs.proCached = v }
+
+    /** Ouvre la présentation Pro si l'utilisateur n'est pas Pro. */
+    fun requirePro(): Boolean { if (!isPro) showPro = true; return isPro }
+
+    private suspend fun token(activity: Activity): String {
+        if (idToken.isNotBlank() && System.currentTimeMillis() - tokenAt < 50 * 60_000L) return idToken
+        val t = Auth.silentToken(activity) ?: throw IOException("Reconnectez-vous avec Google (Réglages › Compte).")
+        idToken = t; tokenAt = System.currentTimeMillis()
+        return t
+    }
+
+    fun refreshPro(activity: Activity, showResult: Boolean = false) = viewModelScope.launch {
+        if (userEmail.isBlank() || !ProApi.configured) {
+            setPro(false)
+            if (showResult) toast("Connectez-vous avec Google pour activer Pro.")
+            return@launch
+        }
+        val r = runCatching { ProApi.status(token(activity)) }
+        r.onSuccess { (pro, _) ->
+            setPro(pro)
+            if (showResult) toast(if (pro) "✅ Safety Tags Pro est actif sur ce compte" else "Ce compte est en version gratuite.")
+        }.onFailure { if (showResult) toast(it.message ?: "Vérification impossible") }
+    }
+
     /* ---------- compte ---------- */
     fun signInGoogle(activity: Activity) = viewModelScope.launch {
         val u = task("Connexion avec Google…") { Auth.signIn(activity) } ?: return@launch
         prefs.userName = u.name; prefs.userEmail = u.email
         userName = u.name; userEmail = u.email
+        idToken = u.idToken; tokenAt = System.currentTimeMillis()
+        if (ProApi.configured) runCatching { ProApi.status(u.idToken) }.onSuccess { setPro(it.first) }
         var c = cfg
         if (c.constatePar.isBlank()) c = c.copy(constatePar = u.name)
         if (c.signature.isBlank()) c = c.copy(signature = u.name)
@@ -90,6 +126,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     fun signOut(ctx: Context) = viewModelScope.launch {
         Auth.signOut(ctx)
         prefs.userName = ""; prefs.userEmail = ""; userName = ""; userEmail = ""
+        idToken = ""; tokenAt = 0L; setPro(false)
         prefs.onboarded = false; onboarded = false
     }
 
@@ -173,10 +210,13 @@ class MainVm(app: Application) : AndroidViewModel(app) {
 
     fun setGrav(g: String) = edit(form.copy(grav = g, cible = D.plusDays(form.date, cfg.delai(g).toLong())))
 
-    fun aiFill() = viewModelScope.launch {
-        if (prefs.aiKey.isBlank()) { toast("Ajoutez une clé API Anthropic dans Réglages pour utiliser l’IA."); return@launch }
+    fun aiFill(activity: Activity) = viewModelScope.launch {
+        if (!requirePro()) return@launch
         if (photo == null && note.isBlank()) { toast("Ajoutez une photo ou une note."); return@launch }
-        val r = task("L’IA analyse la photo…") { Ai.fill(prefs.aiKey, prefs.aiModel, note, photo, cfg) } ?: return@launch
+        val r = task("L’IA analyse la photo…") {
+            val img = photo?.let { Img.toBase64(Img.scaleMax(it, 1280), 80) }
+            Ai.parse(ProApi.ai(token(activity), Ai.prompt(note, cfg), img))
+        } ?: return@launch
         val grav = r.optString("gravite").takeIf { it in Gravites.all } ?: form.grav
         val zone = r.optString("zone").ifBlank { form.zone }
         val service = r.optString("service").ifBlank { form.service }
@@ -360,6 +400,47 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         }
         open = open.map { if (it.row == nt.row) nt else it }
         toast("Responsable mis à jour")
+    }
+
+    /* ---------- Pro : tableau de bord, rapport PDF, relances ---------- */
+    var allTags by mutableStateOf<List<Tag>>(emptyList()); private set
+
+    fun loadAll() = viewModelScope.launch {
+        val list = if (prefs.sheetMode)
+            task("Chargement des statistiques…") { api.call("list", JSONObject().put("status", "all")).getJSONArray("data").objs().map { Tag.fromApi(it) } }
+        else withContext(Dispatchers.IO) { local.all() }
+        if (list != null) { allTags = list; open = list.filter { it.statut != "Clôturé" }.reversed() }
+    }
+
+    fun isLate(t: Tag): Boolean {
+        if (t.statut == "Clôturé") return false
+        val c = D.parse(t.cible)?.toLocalDate() ?: return false
+        return c.isBefore(LocalDate.now())
+    }
+
+    fun remind(ctx: Context, person: String, tags: List<Tag>) {
+        if (!requirePro()) return
+        val body = buildString {
+            appendLine(if (Rules.splitNames(person).size == 1) "Bonjour ${person.split(" ").first()}," else "Bonjour,"); appendLine()
+            appendLine("Les Safety Tags suivants sous votre responsabilité ont dépassé leur date cible :"); appendLine()
+            tags.sortedBy { D.parse(it.cible) }.forEach { t ->
+                appendLine("- N° ${t.n} (${t.zone.ifBlank { "—" }}) : ${t.desc}")
+                appendLine("  Date cible : ${D.day(t.cible)} · Gravité : ${t.grav}")
+            }
+            appendLine(); appendLine("Merci de nous indiquer l’avancement ou la date de réalisation prévue."); appendLine()
+            appendLine("Cordialement,"); append(cfg.signature.ifBlank { cfg.constatePar })
+        }
+        sendMail(ctx, person, cfg.ccOuverture, "Relance : ${tags.size} Safety Tag(s) en retard", body, null, "")
+    }
+
+    fun exportPdf(ctx: Context, list: List<Tag>) {
+        if (!requirePro()) return
+        val f = Report.pdf(ctx, list, cfg, logo) { isLate(it) }
+        val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+        ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putExtra(Intent.EXTRA_SUBJECT, "Rapport Safety Tags – ${D.day(D.now())}")
+        }, "Partager le rapport PDF"))
     }
 
     /* ---------- export / import ---------- */

@@ -47,6 +47,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -112,8 +114,10 @@ fun AppRoot(vm: MainVm) {
     if (!vm.onboarded) { LoginScreen(vm); return }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val snack = remember { SnackbarHostState() }
+    val activity = LocalContext.current as Activity
+    LaunchedEffect(Unit) { vm.refreshPro(activity) }
     LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
-    val titles = listOf("Nouveau tag", "Tags ouverts", "Réglages")
+    val titles = listOf("Nouveau tag", "Tags ouverts", "Tableau de bord", "Réglages")
     Scaffold(
         topBar = {
             TopAppBar(
@@ -122,6 +126,7 @@ fun AppRoot(vm: MainVm) {
                         Image(painterResource(R.drawable.logo_app), null, Modifier.size(30.dp))
                         Spacer(Modifier.width(10.dp))
                         Text(titles[tab], fontWeight = FontWeight.Bold)
+                        if (vm.isPro) { Spacer(Modifier.width(8.dp)); ProBadge(onRed = true) }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Red, titleContentColor = Color.White,
@@ -129,6 +134,7 @@ fun AppRoot(vm: MainVm) {
                 actions = {
                     if (tab == 0) IconButton(onClick = { vm.newTag() }) { Icon(Icons.Default.Add, "Nouveau tag") }
                     if (tab == 1) IconButton(onClick = { vm.loadOpen() }) { Icon(Icons.Default.Refresh, "Actualiser") }
+                    if (tab == 2 && vm.isPro) IconButton(onClick = { vm.loadAll() }) { Icon(Icons.Default.Refresh, "Actualiser") }
                 }
             )
         },
@@ -137,7 +143,8 @@ fun AppRoot(vm: MainVm) {
             NavigationBar {
                 NavigationBarItem(selected = tab == 0, onClick = { tab = 0 }, icon = { Icon(Icons.Default.Edit, null) }, label = { Text("Nouveau") })
                 NavigationBarItem(selected = tab == 1, onClick = { tab = 1 }, icon = { Icon(Icons.Default.List, null) }, label = { Text("Ouverts") })
-                NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Réglages") })
+                NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = { Icon(Icons.Default.Star, null) }, label = { Text("Tableau") })
+                NavigationBarItem(selected = tab == 3, onClick = { tab = 3 }, icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Réglages") })
             }
         }
     ) { pad ->
@@ -149,9 +156,140 @@ fun AppRoot(vm: MainVm) {
             when (tab) {
                 0 -> NewTagScreen(vm)
                 1 -> OpenTagsScreen(vm)
+                2 -> DashboardScreen(vm)
                 else -> SettingsScreen(vm)
             }
         }
+    }
+    if (vm.showPro) ProDialog(vm)
+}
+
+/* ---------------- Pro ---------------- */
+
+@Composable
+fun ProBadge(onRed: Boolean = false) {
+    Box(Modifier.background(if (onRed) Color.White else Color(0xFFFFB300), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 1.dp)) {
+        Text("PRO", color = if (onRed) Red else Color(0xFF3E2723), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+    }
+}
+
+private val proFeatures = listOf(
+    "Remplissage automatique par l’IA à partir de la photo",
+    "Tableau de bord : tags ouverts, en retard, par responsable et par zone",
+    "Rapport PDF des tags à partager en réunion",
+    "Relances groupées des tags en retard, par responsable"
+)
+
+@Composable
+fun ProFeatures() {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        proFeatures.forEach { f -> Row { Text("★ ", color = Color(0xFFFFB300)); Text(f) } }
+    }
+}
+
+@Composable
+fun ProDialog(vm: MainVm) {
+    val activity = LocalContext.current as Activity
+    AlertDialog(
+        onDismissRequest = { vm.showPro = false },
+        title = { Row(verticalAlignment = Alignment.CenterVertically) { Text("Safety Tags "); ProBadge() } },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Cette fonction fait partie de Safety Tags Pro.")
+                ProFeatures()
+                Text(if (vm.userEmail.isBlank()) "Connectez-vous avec Google (Réglages › Compte) pour activer Pro sur votre compte."
+                    else "L’abonnement Pro arrive bientôt sur Google Play. Pour un accès anticipé, contactez le développeur depuis la fiche Google Play.",
+                    style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            }
+        },
+        confirmButton = { TextButton(onClick = { vm.showPro = false; vm.refreshPro(activity, showResult = true) }) { Text("Vérifier mon statut") } },
+        dismissButton = { TextButton(onClick = { vm.showPro = false }) { Text("Fermer") } }
+    )
+}
+
+@Composable
+private fun Kpi(label: String, value: Int, color: Color, modifier: Modifier) {
+    Card(modifier, colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f))) {
+        Column(Modifier.padding(12.dp)) {
+            Text(value.toString(), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = color)
+            Text(label, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun Bars(title: String, data: List<Pair<String, Int>>, color: Color) {
+    if (data.isEmpty()) return
+    Section(title)
+    val max = data.maxOf { it.second }.coerceAtLeast(1)
+    data.forEach { (k, v) ->
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+            Text(k.ifBlank { "—" }, modifier = Modifier.width(130.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall)
+            Box(Modifier.weight(1f).height(16.dp)) {
+                Box(Modifier.fillMaxWidth(v.toFloat() / max).height(16.dp).background(color, RoundedCornerShape(4.dp)))
+            }
+            Text(" $v", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(36.dp))
+        }
+    }
+}
+
+@Composable
+fun DashboardScreen(vm: MainVm) {
+    val ctx = LocalContext.current
+    val activity = ctx as Activity
+    if (!vm.isPro) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.Lock, null, tint = Red, modifier = Modifier.size(48.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) { Text("Safety Tags ", fontSize = 22.sp, fontWeight = FontWeight.Bold); ProBadge() }
+            ProFeatures()
+            Button(onClick = { vm.refreshPro(activity, showResult = true) }) { Text("Vérifier mon statut Pro") }
+            Text(if (vm.userEmail.isBlank()) "Connectez-vous avec Google pour activer Pro sur votre compte."
+                else "Compte : ${vm.userEmail}", style = MaterialTheme.typography.bodySmall, color = Color.Gray, textAlign = TextAlign.Center)
+        }
+        return
+    }
+    LaunchedEffect(Unit) { vm.loadAll() }
+    val all = vm.allTags
+    val open = all.filter { it.statut != "Clôturé" }
+    val late = open.filter { vm.isLate(it) }
+    val month = D.now().substring(3, 10)
+    val closedMonth = all.count { it.statut == "Clôturé" && D.day(it.date).endsWith(month) }
+    Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Kpi("Ouverts", open.size, Color(0xFF1565C0), Modifier.weight(1f))
+            Kpi("En retard", late.size, Red, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Kpi("Gravité élevée", open.count { it.grav == "Élevée" }, Color(0xFFE65100), Modifier.weight(1f))
+            Kpi("Créés ce mois, clôturés", closedMonth, Color(0xFF2E7D32), Modifier.weight(1f))
+        }
+        Button(onClick = { vm.exportPdf(ctx, open) }, modifier = Modifier.fillMaxWidth(), enabled = open.isNotEmpty()) {
+            Text("Rapport PDF des tags ouverts")
+        }
+        Bars("Ouverts par responsable", open.flatMap { Rules.splitNames(it.resp) }.groupingBy { it }.eachCount()
+            .entries.sortedByDescending { it.value }.take(10).map { it.key to it.value }, Color(0xFF1565C0))
+        Bars("Ouverts par zone", open.groupingBy { it.zone }.eachCount().entries.sortedByDescending { it.value }.take(10)
+            .map { it.key to it.value }, Color(0xFF6A1B9A))
+        Bars("Ouverts par type", open.groupingBy { it.type }.eachCount().entries.sortedByDescending { it.value }.take(8)
+            .map { it.key to it.value }, Color(0xFF00838F))
+
+        Section("Relances des tags en retard")
+        val byPerson = late.flatMap { t -> Rules.splitNames(t.resp).map { it to t } }.groupBy({ it.first }, { it.second })
+            .entries.sortedByDescending { it.value.size }
+        if (byPerson.isEmpty()) Text("Aucun tag en retard 👍", color = Color.Gray)
+        byPerson.forEach { (person, tags) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(person, fontWeight = FontWeight.Bold)
+                    Text("${tags.size} tag(s) en retard · N° " + tags.joinToString(", ") { it.n }, style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                OutlinedButton(onClick = { vm.remind(ctx, person, tags) }) { Text("Relancer") }
+            }
+        }
+        Spacer(Modifier.height(40.dp))
     }
 }
 
@@ -285,7 +423,9 @@ fun NewTagScreen(vm: MainVm) {
             Image(it.asImageBitmap(), "Photo", Modifier.fillMaxWidth().heightIn(max = 260.dp), contentScale = ContentScale.Fit)
         }
         Field("Note rapide (ce que vous avez constaté)", vm.note, { vm.note = it }, lines = 2)
-        Button(onClick = { vm.aiFill() }, enabled = vm.busy.isEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Remplir avec l’IA") }
+        Button(onClick = { vm.aiFill(ctx as Activity) }, enabled = vm.busy.isEmpty(), modifier = Modifier.fillMaxWidth()) {
+            Text("Remplir avec l’IA"); Spacer(Modifier.width(8.dp)); ProBadge(onRed = true)
+        }
 
         Section("Identification")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -541,8 +681,6 @@ fun SettingsScreen(vm: MainVm) {
     fun set(n: Config) = vm.saveConfig(n)
     var url by rememberSaveable { mutableStateOf(vm.prefs.url) }
     var token by rememberSaveable { mutableStateOf(vm.prefs.token) }
-    var key by rememberSaveable { mutableStateOf(vm.prefs.aiKey) }
-    var model by rememberSaveable { mutableStateOf(vm.prefs.aiModel) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { vm.importConfig(ctx, it) } }
 
     val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { vm.setLogo(ctx, it) } }
@@ -648,13 +786,13 @@ fun SettingsScreen(vm: MainVm) {
         Text(if (vm.connected) "✅ Connecté au Google Sheet" else if (vm.prefs.sheetMode) "Non connecté" else "Mode local",
             color = if (vm.connected) Color(0xFF2E7D32) else Color.Gray)
 
-        Section("IA (optionnel)")
-        OutlinedTextField(key, { key = it }, label = { Text("Clé API Anthropic") }, singleLine = true,
-            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-        Field("Modèle", model, { model = it })
-        Button(onClick = { vm.prefs.aiKey = key; vm.prefs.aiModel = model.ifBlank { "claude-sonnet-5-5" }; vm.toast("Réglages IA enregistrés") }) {
-            Text("Enregistrer")
+        Section("Abonnement")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (vm.isPro) { ProBadge(); Text("  Safety Tags Pro est actif", fontWeight = FontWeight.Bold) }
+            else Text("Version gratuite", color = Color.Gray)
         }
+        ProFeatures()
+        OutlinedButton(onClick = { vm.refreshPro(ctx as Activity, showResult = true) }) { Text("Vérifier mon statut Pro") }
 
         Section("Sauvegarde des réglages")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

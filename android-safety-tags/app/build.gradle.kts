@@ -8,6 +8,8 @@ val googleWebClientId: String = (project.findProperty("googleWebClientId") as St
     ?: rootProject.file("google-web-client-id.txt").takeIf { it.exists() }?.readText()?.trim()
     ?: ""
 
+val proApiUrl: String = rootProject.file("pro-api-url.txt").takeIf { it.exists() }?.readText()?.trim() ?: ""
+
 android {
     namespace = "app.safetytags"
     compileSdk = 35
@@ -16,9 +18,10 @@ android {
         applicationId = "app.safetytags"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+        buildConfigField("String", "PRO_API_URL", "\"$proApiUrl\"")
     }
     signingConfigs {
         // clé de débogage fixe (non secrète) : les mises à jour de l'APK s'installent sans désinstaller

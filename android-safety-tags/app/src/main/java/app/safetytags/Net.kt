@@ -20,15 +20,9 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Client du script Google Apps Script relié au Sheet. */
-class Api(private val prefs: Prefs) {
-
-    suspend fun call(action: String, body: JSONObject = JSONObject()): JSONObject = withContext(Dispatchers.IO) {
-        val url = prefs.url
-        if (!url.startsWith("https://")) throw IOException("Renseignez l’URL du script dans Réglages.")
-        body.put("action", action)
-        body.put("token", prefs.token)
-
+/** POST JSON vers un script Google Apps Script (gère la redirection googleusercontent). */
+object Http {
+    suspend fun postScript(url: String, body: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         var conn = URL(url).openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.doOutput = true
@@ -39,7 +33,6 @@ class Api(private val prefs: Prefs) {
         conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
         var code = conn.responseCode
         var hops = 0
-        // Apps Script répond par une redirection vers googleusercontent.com
         while (code in 300..399 && hops < 5) {
             val loc = conn.getHeaderField("Location") ?: break
             conn.disconnect()
@@ -55,72 +48,70 @@ class Api(private val prefs: Prefs) {
         val json = try {
             JSONObject(text)
         } catch (e: Exception) {
-            throw IOException("Réponse inattendue du script (code $code). Vérifiez l’URL et le déploiement.")
+            throw IOException("Réponse inattendue du serveur (code $code).")
         }
-        if (!json.optBoolean("ok")) throw IOException(json.optString("error", "Erreur du script"))
+        if (!json.optBoolean("ok")) throw IOException(json.optString("error", "Erreur du serveur"))
         json
     }
 }
 
-/** Remplissage automatique par Claude (clé API Anthropic personnelle, optionnelle). */
+/** Client du script Google Apps Script relié au Sheet. */
+class Api(private val prefs: Prefs) {
+    suspend fun call(action: String, body: JSONObject = JSONObject()): JSONObject {
+        val url = prefs.url
+        if (!url.startsWith("https://")) throw IOException("Renseignez l’URL du script dans Réglages.")
+        body.put("action", action)
+        body.put("token", prefs.token)
+        return Http.postScript(url, body)
+    }
+}
+
+/** Serveur Safety Tags Pro : statut Pro et IA (la clé IA reste sur le serveur). */
+object ProApi {
+    val configured get() = BuildConfig.PRO_API_URL.startsWith("https://")
+
+    suspend fun status(idToken: String): Pair<Boolean, String> {
+        val d = Http.postScript(BuildConfig.PRO_API_URL, JSONObject().put("action", "status").put("idToken", idToken)).getJSONObject("data")
+        return d.optBoolean("pro") to d.optString("email")
+    }
+
+    suspend fun ai(idToken: String, prompt: String, imageB64: String?): String {
+        val body = JSONObject().put("action", "ai").put("idToken", idToken).put("prompt", prompt)
+        if (imageB64 != null) body.put("image", imageB64)
+        return Http.postScript(BuildConfig.PRO_API_URL, body).getJSONObject("data").optString("text")
+    }
+}
+
+/** Remplissage automatique d'un tag par l'IA (Pro). */
 object Ai {
-    suspend fun fill(
-        key: String, model: String, note: String, photo: Bitmap?, cfg: Config
-    ): JSONObject = withContext(Dispatchers.IO) {
-        fun choices(label: String, list: List<String>) =
+    fun prompt(note: String, cfg: Config): String {
+        fun choices(list: List<String>) =
             if (list.isEmpty()) "texte libre" else "de préférence un de ${JSONArray(list)} (ou une nouvelle valeur si aucun ne convient)"
         val rules = if (cfg.regles.isEmpty()) "(aucune)" else
             cfg.regles.joinToString("\n") { "- service ${it.service} / zone ${it.zone} → ${it.responsable}" }
-        val prompt = """
+        return """
 Tu es animateur HSE dans une entreprise. À partir de la photo d'anomalie et de la note, rédige un Safety Tag en français, concis et professionnel.
 Note : "${note.ifBlank { "(aucune)" }}"
 Règles d'affectation connues :
 $rules
 Respecte les informations de la note (lieu, zone, responsable). N'invente pas de lieu précis ni de nom de personne.
 Réponds UNIQUEMENT avec un objet JSON :
-{"type": ${choices("type", cfg.types)},
+{"type": ${choices(cfg.types)},
  "gravite": "Élevée"|"Moyenne"|"Faible",
- "zone": ${choices("zone", cfg.zones)} ou "" si inconnue,
- "service": ${choices("service", cfg.services)} ou "" si inconnu,
+ "zone": ${choices(cfg.zones)} ou "" si inconnue,
+ "service": ${choices(cfg.services)} ou "" si inconnu,
  "responsable": "" sauf si la note nomme le responsable,
  "emplacement": string, "description": string (1 phrase), "risque": string (1 phrase),
  "action_urgente": string (1 phrase), "proposition": string (1 à 2 phrases)}
 """.trimIndent()
+    }
 
-        val content = JSONArray()
-        if (photo != null) {
-            content.put(JSONObject().put("type", "image").put("source", JSONObject()
-                .put("type", "base64").put("media_type", "image/jpeg")
-                .put("data", Img.toBase64(Img.scaleMax(photo, 1280), 80))))
-        }
-        content.put(JSONObject().put("type", "text").put("text", prompt))
-        val body = JSONObject().put("model", model).put("max_tokens", 1200)
-            .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", content)))
-
-        val conn = URL("https://api.anthropic.com/v1/messages").openConnection() as HttpURLConnection
-        conn.requestMethod = "POST"
-        conn.doOutput = true
-        conn.connectTimeout = 30_000
-        conn.readTimeout = 120_000
-        conn.setRequestProperty("content-type", "application/json")
-        conn.setRequestProperty("x-api-key", key)
-        conn.setRequestProperty("anthropic-version", "2023-06-01")
-        conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-        val code = conn.responseCode
-        val text = (if (code < 400) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
-        conn.disconnect()
-        if (code >= 400) {
-            val msg = runCatching { JSONObject(text).getJSONObject("error").getString("message") }.getOrDefault(text.take(200))
-            throw IOException("IA : $msg")
-        }
-        val answer = JSONObject(text).getJSONArray("content").let { arr ->
-            (0 until arr.length()).map { arr.getJSONObject(it) }.filter { it.optString("type") == "text" }
-                .joinToString("") { it.optString("text") }
-        }
-        val start = answer.indexOf('{')
-        val end = answer.lastIndexOf('}')
+    fun parse(answer: String): JSONObject {
+        val clean = answer.replace(Regex("(?s)<think>.*?</think>"), "")
+        val start = clean.indexOf('{')
+        val end = clean.lastIndexOf('}')
         if (start < 0 || end <= start) throw IOException("IA : réponse illisible")
-        JSONObject(answer.substring(start, end + 1))
+        return JSONObject(clean.substring(start, end + 1))
     }
 }
 

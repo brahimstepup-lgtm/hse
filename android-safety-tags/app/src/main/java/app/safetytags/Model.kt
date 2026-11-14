@@ -215,12 +215,9 @@ class Prefs(ctx: Context) {
     var token: String
         get() = get("token")
         set(v) = put("token", v.trim())
-    var aiKey: String
-        get() = get("aiKey")
-        set(v) = put("aiKey", v.trim())
-    var aiModel: String
-        get() = get("aiModel", "claude-sonnet-5-5")
-        set(v) = put("aiModel", v.trim())
+    var proCached: Boolean
+        get() = get("pro") == "1"
+        set(v) = put("pro", if (v) "1" else "")
     var config: Config
         get() = runCatching { Config.fromJson(JSONObject(get("config", "{}"))) }.getOrDefault(Config())
         set(v) = put("config", v.toJson().toString())
