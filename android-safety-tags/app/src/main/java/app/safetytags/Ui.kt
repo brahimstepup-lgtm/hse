@@ -198,11 +198,18 @@ private fun PhotoButtons(onPicked: (Uri) -> Unit) {
 fun NewTagScreen(vm: MainVm) {
     val ctx = LocalContext.current
     val f = vm.form
+    val cfg = vm.cfg
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (cfg.zones.isEmpty() && cfg.personnes.isEmpty()) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Text("Première utilisation : remplissez simplement les champs. Les zones, types, services et responsables " +
+                    "que vous tapez vous seront proposés à l’enregistrement pour les retrouver la prochaine fois. " +
+                    "Tout se personnalise aussi dans Réglages.", modifier = Modifier.padding(12.dp))
+            }
+        }
         if (vm.savedRow != 0) {
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9))) {
-                Text("✅ Tag N° ${f.n} enregistré dans le Sheet (ligne ${vm.savedRow}). Touchez + pour un nouveau tag.",
-                    color = Color(0xFF1B5E20), modifier = Modifier.padding(12.dp))
+                Text("✅ Tag N° ${f.n} enregistré. Touchez + pour un nouveau tag.", color = Color(0xFF1B5E20), modifier = Modifier.padding(12.dp))
             }
         }
         Section("Photo de constat")
@@ -210,37 +217,31 @@ fun NewTagScreen(vm: MainVm) {
         vm.photo?.let {
             Image(it.asImageBitmap(), "Photo", Modifier.fillMaxWidth().heightIn(max = 260.dp), contentScale = ContentScale.Fit)
         }
-        Field("Note rapide (ex : RIA salle lavage étage 1, volant absent)", vm.note, { vm.note = it }, lines = 2)
-        Button(onClick = { vm.aiFill() }, enabled = vm.busy.isEmpty(), modifier = Modifier.fillMaxWidth()) {
-            Text("Remplir avec l’IA")
-        }
+        Field("Note rapide (ce que vous avez constaté)", vm.note, { vm.note = it }, lines = 2)
+        Button(onClick = { vm.aiFill() }, enabled = vm.busy.isEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Remplir avec l’IA") }
 
         Section("Identification")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Field("N°", f.n, { vm.edit(f.copy(n = it)) }, Modifier.width(110.dp), keyboard = KeyboardOptions(keyboardType = KeyboardType.Number))
             Column { Text("Statut", style = MaterialTheme.typography.labelMedium); Chips(listOf("Ouvert", "Clôturé"), f.statut) { vm.edit(f.copy(statut = it)) } }
         }
-        Picker("Type", f.type, Lists.types, { vm.edit(f.copy(type = it)) })
+        Picker("Type de danger", f.type, cfg.types, { vm.edit(f.copy(type = it)) })
         Text("Gravité", style = MaterialTheme.typography.labelMedium)
-        Chips(Lists.gravites, f.grav) { vm.edit(f.copy(grav = it)) }
+        Chips(Gravites.all, f.grav) { vm.setGrav(it) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Field("Date de constat", f.date, { vm.edit(f.copy(date = it)) }, Modifier.weight(1.2f))
             Field("Date cible", f.cible, { vm.edit(f.copy(cible = it)) }, Modifier.weight(1f))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf(1L, 3L, 7L, 15L).forEach { d ->
-                OutlinedButton(onClick = { vm.edit(f.copy(cible = D.plusDays(f.date, d))) }) { Text("+$d j", fontSize = 12.sp) }
-            }
-        }
 
         Section("Localisation et responsable")
-        Picker("Étage / zone", f.zone, Lists.etages, { vm.edit(f.copy(zone = it)); vm.suggestResp() })
-        Picker("Catégorie (pour le responsable)", vm.categorie, Lists.categories, { vm.categorie = it; vm.suggestResp() })
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { vm.sharp = !vm.sharp; vm.suggestResp() }) {
-            Checkbox(checked = vm.sharp, onCheckedChange = { vm.sharp = it; vm.suggestResp() })
-            Text("Partie tranchante (responsable supplémentaire)")
-        }
-        Field("Responsable(s) — séparés par /", f.resp, { vm.edit(f.copy(resp = it)) })
+        Picker("Zone", f.zone, cfg.zones, { vm.edit(f.copy(zone = it)); vm.suggestResp(zone = it) })
+        Picker("Service concerné", f.service, cfg.services, { vm.edit(f.copy(service = it)); vm.suggestResp(service = it) })
+        Picker("Responsable(s) — séparés par /", f.resp, cfg.personnes.map { it.nom }, { v ->
+            val cur = Rules.splitNames(f.resp)
+            // choisir dans la liste ajoute la personne si un nom est déjà saisi
+            val next = if (v in cfg.personnes.map { it.nom } && cur.isNotEmpty() && v !in cur && f.resp.trim().endsWith("/")) f.resp.trim() + " " + v else v
+            vm.edit(f.copy(resp = next))
+        })
         Field("Emplacement exact", f.empl, { vm.edit(f.copy(empl = it)) })
 
         Section("Analyse")
@@ -251,19 +252,59 @@ fun NewTagScreen(vm: MainVm) {
         Field("Constaté par", f.par, { vm.edit(f.copy(par = it)) })
 
         Section("Fiche et envoi")
+        Text(if (vm.prefs.sheetMode) "Enregistrement dans votre Google Sheet" else "Enregistrement sur ce téléphone (aucun Google Sheet connecté)",
+            style = MaterialTheme.typography.labelMedium, color = Color.Gray)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { vm.buildFiche() }) { Text("Aperçu fiche") }
             Button(onClick = { vm.save() }, enabled = vm.savedRow == 0 && vm.busy.isEmpty()) {
-                Icon(Icons.Default.Check, null); Spacer(Modifier.width(6.dp)); Text("Enregistrer (Sheet + Drive)")
+                Icon(Icons.Default.Check, null); Spacer(Modifier.width(6.dp)); Text("Enregistrer")
             }
             Button(onClick = { vm.emailNew(ctx) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F6CBD))) {
-                Icon(Icons.Default.Send, null); Spacer(Modifier.width(6.dp)); Text("Email Outlook")
+                Icon(Icons.Default.Send, null); Spacer(Modifier.width(6.dp)); Text("Email")
             }
             OutlinedButton(onClick = { vm.shareNew(ctx) }) { Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Partager") }
         }
         vm.fiche?.let { FicheImage(it) }
         Spacer(Modifier.height(40.dp))
     }
+    vm.learn?.let { LearnDialog(vm, it) }
+}
+
+@Composable
+private fun LearnDialog(vm: MainVm, l: Learn) {
+    var zones by remember { mutableStateOf(l.zones.toSet()) }
+    var types by remember { mutableStateOf(l.types.toSet()) }
+    var services by remember { mutableStateOf(l.services.toSet()) }
+    var people by remember { mutableStateOf(l.personnes.toSet()) }
+    var rule by remember { mutableStateOf(l.regle != null) }
+    @Composable
+    fun Line(label: String, checked: Boolean, onToggle: () -> Unit) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onToggle)) {
+            Checkbox(checked, { onToggle() }); Text(label)
+        }
+    }
+    AlertDialog(
+        onDismissRequest = { vm.learn = null },
+        title = { Text("Enregistrer pour la prochaine fois ?") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                l.zones.forEach { v -> Line("Zone : $v", v in zones) { zones = if (v in zones) zones - v else zones + v } }
+                l.types.forEach { v -> Line("Type : $v", v in types) { types = if (v in types) types - v else types + v } }
+                l.services.forEach { v -> Line("Service : $v", v in services) { services = if (v in services) services - v else services + v } }
+                l.personnes.forEach { v -> Line("Personne : $v", v in people) { people = if (v in people) people - v else people + v } }
+                l.regle?.let { r -> Line("Règle : ${r.service} + ${r.zone} → ${r.responsable}", rule) { rule = !rule } }
+                if (l.personnes.isNotEmpty()) Text("Ajoutez leur email ensuite dans Réglages › Personnes.",
+                    style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                vm.acceptLearning(Learn(l.zones.filter { it in zones }, l.types.filter { it in types },
+                    l.services.filter { it in services }, l.personnes.filter { it in people }, if (rule) l.regle else null))
+            }) { Text("Enregistrer") }
+        },
+        dismissButton = { TextButton(onClick = { vm.learn = null }) { Text("Non merci") } }
+    )
 }
 
 @Composable
@@ -275,7 +316,8 @@ private fun FicheImage(b: Bitmap) {
 
 @Composable
 fun OpenTagsScreen(vm: MainVm) {
-    LaunchedEffect(Unit) { if (vm.open.isEmpty()) vm.loadOpen() }
+    val ctx = LocalContext.current
+    LaunchedEffect(Unit) { vm.loadOpen() }
     var query by rememberSaveable { mutableStateOf("") }
     var resp by rememberSaveable { mutableStateOf("Tous") }
     var before by rememberSaveable { mutableStateOf("") }
@@ -284,8 +326,7 @@ fun OpenTagsScreen(vm: MainVm) {
     var detail by remember { mutableStateOf<Tag?>(null) }
     var confirm by remember { mutableStateOf(false) }
 
-    val people = vm.open.flatMap { t -> t.resp.split("/").map { it.trim() } }.filter { it.isNotEmpty() }
-        .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
+    val people = vm.open.flatMap { Rules.splitNames(it.resp) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
     val limit = D.parse(before)
     val q = query.trim().lowercase()
     val shown = vm.open.filter { t ->
@@ -298,11 +339,14 @@ fun OpenTagsScreen(vm: MainVm) {
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
         Field("Rechercher (N°, description, zone…)", query, { query = it }, Modifier.fillMaxWidth().padding(top = 8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Picker("Responsable", resp, listOf("Tous") + people.map { it.key }, { resp = it }, Modifier.weight(1f))
+            Picker("Responsable", resp, listOf("Tous") + people.map { "${it.key}" }, { resp = it }, Modifier.weight(1f))
             Field("Avant le (jj/mm/aaaa)", before, { before = it }, Modifier.weight(1f))
         }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { hideBuilding = !hideBuilding }) {
-            Checkbox(hideBuilding, { hideBuilding = it }); Text("Masquer les actions bâtiment")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).clickable { hideBuilding = !hideBuilding }) {
+                Checkbox(hideBuilding, { hideBuilding = it }); Text("Masquer bâtiment", fontSize = 14.sp)
+            }
+            TextButton(onClick = { vm.exportCsv(ctx, shown) }) { Text("Exporter CSV") }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${shown.size} affiché(s) · ${vm.open.size} ouvert(s)", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
@@ -310,6 +354,7 @@ fun OpenTagsScreen(vm: MainVm) {
                 Text(if (selected.isEmpty()) "Tout sélectionner" else "Désélectionner")
             }
         }
+        if (vm.open.isEmpty() && vm.busy.isEmpty()) Text("Aucun tag ouvert.", color = Color.Gray, modifier = Modifier.padding(8.dp))
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(shown, key = { it.row }) { t ->
                 TagCard(t, t.row in selected,
@@ -327,7 +372,7 @@ fun OpenTagsScreen(vm: MainVm) {
     if (confirm) AlertDialog(
         onDismissRequest = { confirm = false },
         title = { Text("Clôturer ${selected.size} tag(s) ?") },
-        text = { Text("Le statut passera à « ✅ Fermé » dans le Sheet. Aucun email ne sera envoyé.") },
+        text = { Text("Leur statut passera à « Clôturé ». Aucun email ne sera envoyé.") },
         confirmButton = { TextButton(onClick = { confirm = false; vm.closeRows(selected.toList()) { selected = emptySet() } }) { Text("Clôturer") } },
         dismissButton = { TextButton(onClick = { confirm = false }) { Text("Annuler") } }
     )
@@ -342,13 +387,13 @@ private fun TagCard(t: Tag, checked: Boolean, onCheck: () -> Unit, onOpen: () ->
             Checkbox(checked, { onCheck() })
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).padding(0.dp)) { Card(colors = CardDefaults.cardColors(containerColor = gravColor), modifier = Modifier.fillMaxSize()) {} }
+                    Card(colors = CardDefaults.cardColors(containerColor = gravColor), shape = RoundedCornerShape(5.dp), modifier = Modifier.size(10.dp)) {}
                     Spacer(Modifier.width(6.dp))
                     Text("N° ${t.n}", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(8.dp))
                     Text(D.day(t.date), style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.weight(1f))
-                    Text(t.zone, style = MaterialTheme.typography.labelMedium)
+                    Text(t.zone, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Text(t.desc, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(t.resp, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
@@ -369,8 +414,8 @@ private fun TagDialog(vm: MainVm, t: Tag, onClose: () -> Unit) {
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("${t.type} · Gravité ${t.grav}", fontWeight = FontWeight.Bold)
-                Text("Constat : ${D.label(t.date)} · Cible : ${t.cible}")
-                Text("Lieu : ${t.empl} (${t.zone})")
+                Text("Constat : ${D.label(t.date)} · Cible : ${D.day(t.cible)}")
+                Text("Lieu : ${t.empl}" + if (t.zone.isNotBlank()) " (${t.zone})" else "")
                 Text(t.desc)
                 if (t.action.isNotBlank()) Text("Action : ${t.action}")
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -400,48 +445,122 @@ private fun TagDialog(vm: MainVm, t: Tag, onClose: () -> Unit) {
 /* ---------------- Réglages ---------------- */
 
 @Composable
+private fun EditableList(title: String, items: List<String>, onChange: (List<String>) -> Unit, extra: (@Composable () -> Unit)? = null) {
+    var input by remember { mutableStateOf("") }
+    Section(title)
+    if (items.isEmpty()) Text("Liste vide : ajoutez vos valeurs, ou elles seront proposées quand vous les taperez dans un tag.",
+        style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        items.forEach { v ->
+            FilterChip(selected = true, onClick = { onChange(items - v) }, label = { Text(v) },
+                trailingIcon = { Icon(Icons.Default.Delete, "Supprimer", Modifier.size(16.dp)) })
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Field("Ajouter", input, { input = it }, Modifier.weight(1f))
+        IconButton(onClick = {
+            val v = input.trim()
+            if (v.isNotEmpty() && items.none { it.equals(v, true) }) onChange(items + v)
+            input = ""
+        }) { Icon(Icons.Default.Add, "Ajouter") }
+    }
+    extra?.invoke()
+}
+
+@Composable
 fun SettingsScreen(vm: MainVm) {
+    val ctx = LocalContext.current
+    val c = vm.cfg
+    fun set(n: Config) = vm.saveConfig(n)
     var url by rememberSaveable { mutableStateOf(vm.prefs.url) }
     var token by rememberSaveable { mutableStateOf(vm.prefs.token) }
     var key by rememberSaveable { mutableStateOf(vm.prefs.aiKey) }
     var model by rememberSaveable { mutableStateOf(vm.prefs.aiModel) }
-    val contacts = remember(vm.contacts) { mutableStateListOf<Contact>().apply { addAll(vm.contacts) } }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { vm.importConfig(ctx, it) } }
 
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Section("Connexion au Google Sheet")
+        Section("Entreprise et fiche")
+        Field("Nom affiché sur la fiche (ex : Usine X · Suivi HSE)", c.organisation, { set(c.copy(organisation = it)) })
+        Field("Pied de fiche (optionnel)", c.pied, { set(c.copy(pied = it)) })
+        Field("Constaté par (par défaut)", c.constatePar, { set(c.copy(constatePar = it)) })
+        Field("Signature des emails", c.signature, { set(c.copy(signature = it)) }, lines = 2)
+        Text("Délai de la date cible (jours) selon la gravité", style = MaterialTheme.typography.labelMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val num = KeyboardOptions(keyboardType = KeyboardType.Number)
+            Field("Élevée", c.delaiElevee.toString(), { set(c.copy(delaiElevee = it.toIntOrNull() ?: c.delaiElevee)) }, Modifier.weight(1f), keyboard = num)
+            Field("Moyenne", c.delaiMoyenne.toString(), { set(c.copy(delaiMoyenne = it.toIntOrNull() ?: c.delaiMoyenne)) }, Modifier.weight(1f), keyboard = num)
+            Field("Faible", c.delaiFaible.toString(), { set(c.copy(delaiFaible = it.toIntOrNull() ?: c.delaiFaible)) }, Modifier.weight(1f), keyboard = num)
+        }
+
+        EditableList("Zones", c.zones, { set(c.copy(zones = it)) })
+        EditableList("Types de danger", c.types, { set(c.copy(types = it)) }) {
+            if (c.types.isEmpty()) TextButton(onClick = { set(c.copy(types = Config.exemplesTypes)) }) { Text("Charger une liste type HSE") }
+        }
+        EditableList("Services", c.services, { set(c.copy(services = it)) })
+
+        Section("Personnes (nom et email)")
+        c.personnes.forEachIndexed { i, p ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Field("Nom", p.nom, { v -> set(c.copy(personnes = c.personnes.toMutableList().also { it[i] = p.copy(nom = v) })) }, Modifier.weight(1f))
+                Field("Email", p.email, { v -> set(c.copy(personnes = c.personnes.toMutableList().also { it[i] = p.copy(email = v) })) },
+                    Modifier.weight(1.3f), keyboard = KeyboardOptions(keyboardType = KeyboardType.Email))
+                IconButton(onClick = { set(c.copy(personnes = c.personnes.filterIndexed { j, _ -> j != i })) }) { Icon(Icons.Default.Delete, "Supprimer") }
+            }
+        }
+        OutlinedButton(onClick = { set(c.copy(personnes = c.personnes + Contact("", ""))) }) { Text("Ajouter une personne") }
+
+        Section("Règles : service + zone → responsable")
+        Text("« * » veut dire « toutes les zones » ou « tous les services ».", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        c.regles.forEachIndexed { i, r ->
+            fun upd(n: Regle) = set(c.copy(regles = c.regles.toMutableList().also { it[i] = n }))
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Picker("Service", r.service, listOf("*") + c.services, { upd(r.copy(service = it)) }, Modifier.weight(1f))
+                        Picker("Zone", r.zone, listOf("*") + c.zones, { upd(r.copy(zone = it)) }, Modifier.weight(1f))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Picker("Responsable(s)", r.responsable, c.personnes.map { it.nom }, { upd(r.copy(responsable = it)) }, Modifier.weight(1f))
+                        IconButton(onClick = { set(c.copy(regles = c.regles.filterIndexed { j, _ -> j != i })) }) { Icon(Icons.Default.Delete, "Supprimer") }
+                    }
+                }
+            }
+        }
+        OutlinedButton(onClick = { set(c.copy(regles = c.regles + Regle("", "", ""))) }) { Text("Ajouter une règle") }
+
+        Section("Destinataires des emails")
+        Text("Noms (de la liste Personnes) ou adresses, séparés par « ; ».", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        Field("Copie (Cc) des emails d’ouverture", c.ccOuverture, { set(c.copy(ccOuverture = it)) })
+        Field("Destinataires des emails de clôture", c.toCloture, { set(c.copy(toCloture = it)) })
+        Field("Copie (Cc) des emails de clôture", c.ccCloture, { set(c.copy(ccCloture = it)) })
+
+        Section("Google Sheet (optionnel)")
+        Text("Sans Google Sheet, les tags sont gardés sur ce téléphone (export CSV possible).",
+            style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         Field("URL du script (…/exec)", url, { url = it })
         OutlinedTextField(token, { token = it }, label = { Text("Jeton") }, singleLine = true,
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { vm.prefs.url = url; vm.prefs.token = token; vm.testSheet() }) { Text("Enregistrer et tester") }
+            OutlinedButton(onClick = { vm.importFromSheet() }, enabled = vm.connected) { Text("Importer règles et contacts") }
+        }
+        Text(if (vm.connected) "✅ Connecté au Google Sheet" else if (vm.prefs.sheetMode) "Non connecté" else "Mode local",
+            color = if (vm.connected) Color(0xFF2E7D32) else Color.Gray)
+
         Section("IA (optionnel)")
         OutlinedTextField(key, { key = it }, label = { Text("Clé API Anthropic") }, singleLine = true,
             visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         Field("Modèle", model, { model = it })
-        Button(onClick = {
-            vm.prefs.url = url; vm.prefs.token = token; vm.prefs.aiKey = key; vm.prefs.aiModel = model.ifBlank { "claude-sonnet-5-5" }
-            vm.loadInfo(showOk = true)
-        }, modifier = Modifier.fillMaxWidth()) { Text("Enregistrer et tester la connexion") }
-        Text(if (vm.connected) "✅ Connecté au Sheet" else "Non connecté", color = if (vm.connected) Color(0xFF2E7D32) else Color.Gray)
-
-        Section("Contacts (emails des responsables)")
-        contacts.forEachIndexed { i, c ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Field("Nom", c.nom, { contacts[i] = c.copy(nom = it) }, Modifier.weight(1f))
-                Field("Email", c.email, { contacts[i] = c.copy(email = it) }, Modifier.weight(1.3f),
-                    keyboard = KeyboardOptions(keyboardType = KeyboardType.Email))
-                IconButton(onClick = { contacts.removeAt(i) }) { Icon(Icons.Default.Delete, "Supprimer") }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { contacts.add(Contact("", "")) }) { Text("Ajouter un contact") }
-            Button(onClick = { vm.saveContacts(contacts.toList()) }) { Text("Enregistrer dans le Sheet") }
+        Button(onClick = { vm.prefs.aiKey = key; vm.prefs.aiModel = model.ifBlank { "claude-sonnet-5-5" }; vm.toast("Réglages IA enregistrés") }) {
+            Text("Enregistrer")
         }
 
-        Section("Règles d’affectation (onglet « regles »)")
-        if (vm.regles.isEmpty()) Text("Aucune règle chargée.")
-        vm.regles.forEach { Text("• ${it.categorie} / ${it.etage} → ${it.responsable}", style = MaterialTheme.typography.bodySmall) }
-        Section("Paramètres (onglet « parametres »)")
-        vm.params.forEach { (k, v) -> Text("• $k : ${v.ifBlank { "—" }}", style = MaterialTheme.typography.bodySmall) }
-        Text("Les règles et paramètres se modifient directement dans le Google Sheet, puis « Enregistrer et tester ».",
+        Section("Sauvegarde des réglages")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { vm.exportConfig(ctx) }) { Text("Exporter / partager") }
+            OutlinedButton(onClick = { importer.launch("*/*") }) { Text("Importer un fichier") }
+        }
+        Text("Partagez vos réglages avec un collègue pour qu’il retrouve les mêmes listes.",
             style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         Spacer(Modifier.height(40.dp))
     }

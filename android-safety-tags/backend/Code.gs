@@ -14,13 +14,12 @@
 
 var CONFIG = {
   SHEET_ID: 'ID_DU_GOOGLE_SHEET',
-  TAB: 'plan',               // onglet des tags
-  FIRST_ROW: 8,              // première ligne de données
+  TAB: 'Tags',               // onglet des tags (créé par setup s'il n'existe pas)
+  FIRST_ROW: 2,              // première ligne de données (après l'en-tête)
   FOLDER_ID: 'ID_DU_DOSSIER_DRIVE_DES_PHOTOS'
 };
 
-// [Catégorie, Étage, Responsable]  — « * » = tous les étages.
-// La catégorie « Partie tranchante » ajoute un responsable supplémentaire.
+// [Service, Zone, Responsable]  — « * » = toutes les zones / tous les services.
 var DEFAULT_REGLES = [];
 // [Nom, Email]
 var DEFAULT_CONTACTS = [];
@@ -44,7 +43,9 @@ function setup() {
   var props = PropertiesService.getScriptProperties();
   var t = props.getProperty('TOKEN');
   if (!t) { t = Utilities.getUuid().replace(/-/g, ''); props.setProperty('TOKEN', t); }
-  ensureTab_('regles', ['Catégorie', 'Étage', 'Responsable'], DEFAULT_REGLES);
+  ensureTab_(CONFIG.TAB, ['N°', 'Date création', 'Date cible', 'Type', 'Gravité', 'Emplacement', 'Zone',
+    'Description', 'Risque', 'Action urgente', 'Proposition', 'Photo', 'Statut', 'Responsable', 'Photo après'], []);
+  ensureTab_('regles', ['Service', 'Zone', 'Responsable'], DEFAULT_REGLES);
   ensureTab_('contacts', ['Nom', 'Email'], DEFAULT_CONTACTS);
   ensureTab_('parametres', ['Clé', 'Valeur'], DEFAULT_PARAMS);
   DriveApp.getFolderById(CONFIG.FOLDER_ID); // vérifie l'accès au dossier
@@ -154,7 +155,7 @@ function info_() {
     nextNumber: nextNumber_(sh, last),
     nextRow: last + 1,
     regles: table_('regles').map(function (r) {
-      return { categorie: String(r[0]), etage: String(r[1]), responsable: String(r[2]) };
+      return { service: String(r[0]), zone: String(r[1]), responsable: String(r[2]) };
     }),
     contacts: table_('contacts').map(function (r) { return { nom: String(r[0]), email: String(r[1]) }; }),
     params: params

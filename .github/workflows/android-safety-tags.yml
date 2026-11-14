@@ -20,13 +20,13 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.10.2'
       - name: Build APK
         working-directory: android-safety-tags
         shell: bash
         run: |
           set -o pipefail
-          gradle assembleDebug --no-daemon --console=plain 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+          gradle assembleDebug bundleRelease --no-daemon --console=plain 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
@@ -40,6 +40,7 @@ jobs:
           mkdir -p out
           cp build.log out/ 2>/dev/null || echo "no log" > out/build.log
           cp android-safety-tags/app/build/outputs/apk/debug/app-debug.apk out/SafetyTags.apk 2>/dev/null || true
+          cp android-safety-tags/app/build/outputs/bundle/release/app-release.aab out/SafetyTags-release-unsigned.aab 2>/dev/null || true
           echo "${GITHUB_SHA} ${{ job.status }}" > out/STATUS
           cd out
           git init -q

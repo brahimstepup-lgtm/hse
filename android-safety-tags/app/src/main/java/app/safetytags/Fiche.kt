@@ -19,8 +19,6 @@ object Fiche {
     private val REGULAR = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
     private val BOLD = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
 
-    var site = "SOBCO 3 · Suivi des anomalies HSE"
-    var footer = "Tags 2025/2026 · onglet « plan »"
 
     private fun font(p: Paint, size: Float, bold: Boolean, spacing: Float = 0f) {
         p.textSize = size; p.typeface = if (bold) BOLD else REGULAR; p.letterSpacing = spacing
@@ -78,7 +76,7 @@ object Fiche {
         var h1 = col(x, "Date de constat", D.label(t.date), false, left, cw, y)
         var h2 = col(x, "Date cible", D.day(t.cible), false, left + cw + 20f, cw, y)
         y += maxOf(h1, h2) + 16f
-        h1 = col(x, "Zone", t.zone, false, left, cw, y)
+        h1 = col(x, "Zone", listOf(t.zone, t.service).filter { it.isNotBlank() }.joinToString(" · "), false, left, cw, y)
         h2 = col(x, "Responsable", t.resp, true, left + cw + 20f, cw, y)
         y += maxOf(h1, h2) + 16f
         y += field(x, "Emplacement", t.empl, left, w, y) + 16f
@@ -96,7 +94,9 @@ object Fiche {
         return w
     }
 
-    fun render(t: Tag, photo: Bitmap?): Bitmap {
+    fun render(t: Tag, photo: Bitmap?, cfg: Config): Bitmap {
+        val site = cfg.organisation.ifBlank { "Suivi des anomalies HSE" }
+        val footer = cfg.pied
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val top = 110f; val badgesH = 74f; val mainY = top + badgesH + 26f
         val infoX = 30f + 400f + 26f; val infoW = W - infoX - 30f

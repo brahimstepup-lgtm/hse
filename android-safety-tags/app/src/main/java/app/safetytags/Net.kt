@@ -65,24 +65,24 @@ class Api(private val prefs: Prefs) {
 /** Remplissage automatique par Claude (clé API Anthropic personnelle, optionnelle). */
 object Ai {
     suspend fun fill(
-        key: String, model: String, note: String, photo: Bitmap?, regles: List<Regle>
+        key: String, model: String, note: String, photo: Bitmap?, cfg: Config
     ): JSONObject = withContext(Dispatchers.IO) {
-        val rules = if (regles.isEmpty()) "(aucune règle fournie)" else
-            regles.joinToString("\n") { "- ${it.categorie} / ${it.etage} → ${it.responsable}" }
+        fun choices(label: String, list: List<String>) =
+            if (list.isEmpty()) "texte libre" else "de préférence un de ${JSONArray(list)} (ou une nouvelle valeur si aucun ne convient)"
+        val rules = if (cfg.regles.isEmpty()) "(aucune)" else
+            cfg.regles.joinToString("\n") { "- service ${it.service} / zone ${it.zone} → ${it.responsable}" }
         val prompt = """
-Tu es l'animateur HSE d'une usine agroalimentaire. À partir de la photo d'anomalie et de la note, rédige un Safety Tag en français, concis et professionnel.
-Note de l'HSE : "${note.ifBlank { "(aucune)" }}"
-Règles d'affectation (Catégorie / Étage → Responsable) :
+Tu es animateur HSE dans une entreprise. À partir de la photo d'anomalie et de la note, rédige un Safety Tag en français, concis et professionnel.
+Note : "${note.ifBlank { "(aucune)" }}"
+Règles d'affectation connues :
 $rules
-Si la note précise l'emplacement, l'étage ou le responsable, respecte-la. N'invente pas d'emplacement précis s'il n'est pas visible ou indiqué.
+Respecte les informations de la note (lieu, zone, responsable). N'invente pas de lieu précis ni de nom de personne.
 Réponds UNIQUEMENT avec un objet JSON :
-{"type": un de ${JSONArray(Lists.types)},
+{"type": ${choices("type", cfg.types)},
  "gravite": "Élevée"|"Moyenne"|"Faible",
- "jours_cible": entier (1 à 3 Élevée, 3 à 7 Moyenne, 7 à 15 Faible),
- "categorie": un de ${JSONArray(Lists.categories)},
- "etage": un de ${JSONArray(Lists.etages)} ou "",
- "partie_tranchante": true|false,
- "responsable": "" sauf si la note nomme explicitement le responsable,
+ "zone": ${choices("zone", cfg.zones)} ou "" si inconnue,
+ "service": ${choices("service", cfg.services)} ou "" si inconnu,
+ "responsable": "" sauf si la note nomme le responsable,
  "emplacement": string, "description": string (1 phrase), "risque": string (1 phrase),
  "action_urgente": string (1 phrase), "proposition": string (1 à 2 phrases)}
 """.trimIndent()
