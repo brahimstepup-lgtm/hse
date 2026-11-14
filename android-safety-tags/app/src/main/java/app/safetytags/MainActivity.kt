@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
         if (uri != null) {
             if (vm.savedRow != 0) vm.newTag()
             vm.setPhoto(this, uri)
-            vm.toast("Photo reçue : complétez le tag.")
+            vm.toast(tr("Photo reçue : complétez le tag."))
         }
     }
 }

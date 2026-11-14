@@ -59,10 +59,10 @@ object Report {
                 tx = M + lw + 16f
             }
             p.color = Color.WHITE; p.typeface = bold; p.textSize = 18f
-            c.drawText("Rapport Safety Tags", tx, 32f, p)
+            c.drawText(tr("Rapport Safety Tags"), tx, 32f, p)
             p.typeface = regular; p.textSize = 10f
-            c.drawText(cfg.organisation.ifBlank { "Suivi des anomalies HSE" } + " · " + D.day(D.now()), tx, 48f, p)
-            p.textAlign = Paint.Align.RIGHT; c.drawText("Page $pageNo", W - M, 48f, p); p.textAlign = Paint.Align.LEFT
+            c.drawText(cfg.organisation.ifBlank { tr("Suivi des anomalies HSE") } + " · " + D.day(D.now()), tx, 48f, p)
+            p.textAlign = Paint.Align.RIGHT; c.drawText(tr("Page {0}", pageNo), W - M, 48f, p); p.textAlign = Paint.Align.LEFT
             y = 84f
         }
 
@@ -70,7 +70,7 @@ object Report {
             val c = page.canvas
             p.color = Color.parseColor("#F3F3F3"); c.drawRect(M - 4f, y - 12f, W - M + 4f, y + 6f, p)
             p.color = GREY; p.typeface = bold; p.textSize = 8.5f
-            listOf("N°", "Date", "Zone", "Description", "Responsable", "Cible").forEachIndexed { i, h -> c.drawText(h.uppercase(), cols[i], y, p) }
+            listOf("N°", "Date", "Zone", "Description", "Responsable", "Cible").forEachIndexed { i, h -> c.drawText(tr(h).uppercase(), cols[i], y, p) }
             y += 16f
         }
 
@@ -80,12 +80,12 @@ object Report {
         val lateCount = tags.count(late)
         val high = tags.count { it.grav == "Élevée" }
         p.color = INK; p.typeface = bold; p.textSize = 12f
-        c0.drawText("${tags.size} tag(s) · $lateCount en retard · $high de gravité élevée", M, y, p)
+        c0.drawText(tr("{0} tag(s) · {1} en retard · {2} de gravité élevée", tags.size, lateCount, high), M, y, p)
         y += 16f
         p.typeface = regular; p.textSize = 9.5f; p.color = GREY
         val byResp = tags.flatMap { Rules.splitNames(it.resp) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(6)
         if (byResp.isNotEmpty()) {
-            c0.drawText("Par responsable : " + byResp.joinToString(" · ") { "${it.key} (${it.value})" }, M, y, p)
+            c0.drawText(tr("Par responsable : {0}", byResp.joinToString(" · ") { "${it.key} (${it.value})" }), M, y, p)
             y += 20f
         }
         tableHead()
@@ -109,7 +109,7 @@ object Report {
             resp.forEachIndexed { i, l -> c.drawText(l, cols[4], y + i * 11f, p) }
             p.color = if (isLate) RED else INK; p.typeface = if (isLate) bold else regular
             c.drawText(D.day(t.cible), cols[5], y, p)
-            if (isLate) { p.textSize = 7.5f; c.drawText("EN RETARD", cols[5], y + 11f, p) }
+            if (isLate) { p.textSize = 7.5f; c.drawText(tr("EN RETARD"), cols[5], y + 11f, p) }
             p.color = Color.parseColor("#E6E6E6"); c.drawRect(M - 4f, y + rowH - 10f, W - M + 4f, y + rowH - 9.5f, p)
             y += rowH
         }

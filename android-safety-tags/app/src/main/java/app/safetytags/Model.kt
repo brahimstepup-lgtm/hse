@@ -200,7 +200,7 @@ object D {
     fun uiToIso(s: String): String = parse(s)?.format(iso) ?: s
     fun uiDayToIso(s: String): String = parse(s)?.toLocalDate()?.format(isoDay) ?: s
     fun isoToUi(s: String): String = parse(s)?.format(ui) ?: s
-    fun label(s: String): String = parse(s)?.let { it.format(uiDay) + " à " + it.format(DateTimeFormatter.ofPattern("HH:mm")) } ?: s
+    fun label(s: String): String = parse(s)?.let { it.format(uiDay) + tr(" à ") + it.format(DateTimeFormatter.ofPattern("HH:mm")) } ?: s
     fun day(s: String): String = parse(s)?.format(uiDay) ?: s
 }
 
@@ -215,6 +215,11 @@ class Prefs(ctx: Context) {
     var token: String
         get() = get("token")
         set(v) = put("token", v.trim())
+    var lang: String
+        get() = get("lang").ifBlank {
+            java.util.Locale.getDefault().language.let { if (it == "en" || it == "ar") it else "fr" }
+        }
+        set(v) = put("lang", v)
     var mailApp: String
         get() = get("mailApp", Share.DEFAULT_MAIL_APP)
         set(v) = put("mailApp", v)

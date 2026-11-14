@@ -61,7 +61,10 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     // liste des tags ouverts
     var open by mutableStateOf<List<Tag>>(emptyList()); private set
 
+    fun setLang(l: String) { prefs.lang = l; L10n.lang = l }
+
     init {
+        L10n.lang = prefs.lang
         form = blank()
         refreshNumber()
     }
@@ -86,7 +89,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
 
     private suspend fun token(activity: Activity): String {
         if (idToken.isNotBlank() && System.currentTimeMillis() - tokenAt < 50 * 60_000L) return idToken
-        val t = Auth.silentToken(activity) ?: throw IOException("Reconnectez-vous avec Google (Réglages › Compte).")
+        val t = Auth.silentToken(activity) ?: throw IOException(tr("Reconnectez-vous avec Google (Réglages › Compte)."))
         idToken = t; tokenAt = System.currentTimeMillis()
         return t
     }
@@ -94,19 +97,19 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     fun refreshPro(activity: Activity, showResult: Boolean = false) = viewModelScope.launch {
         if (userEmail.isBlank() || !ProApi.configured) {
             updatePro(false)
-            if (showResult) toast("Connectez-vous avec Google pour activer Pro.")
+            if (showResult) toast(tr("Connectez-vous avec Google pour activer Pro."))
             return@launch
         }
         val r = runCatching { ProApi.status(token(activity)) }
         r.onSuccess { (pro, _) ->
             updatePro(pro)
-            if (showResult) toast(if (pro) "✅ Safety Tags Pro est actif sur ce compte" else "Ce compte est en version gratuite.")
-        }.onFailure { if (showResult) toast(it.message ?: "Vérification impossible") }
+            if (showResult) toast(if (pro) tr("✅ Safety Tags Pro est actif sur ce compte") else tr("Ce compte est en version gratuite."))
+        }.onFailure { if (showResult) toast(it.message ?: tr("Vérification impossible")) }
     }
 
     /* ---------- compte ---------- */
     fun signInGoogle(activity: Activity) = viewModelScope.launch {
-        val u = task("Connexion avec Google…") { Auth.signIn(activity) } ?: return@launch
+        val u = task(tr("Connexion avec Google…")) { Auth.signIn(activity) } ?: return@launch
         prefs.userName = u.name; prefs.userEmail = u.email
         userName = u.name; userEmail = u.email
         idToken = u.idToken; tokenAt = System.currentTimeMillis()
@@ -118,7 +121,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         saveConfig(c)
         if (form.par.isBlank()) form = form.copy(par = u.name)
         finishOnboarding()
-        toast("Bienvenue ${u.name.split(" ").first()} !")
+        toast(tr("Bienvenue {0} !", u.name.split(" ").first()))
     }
 
     fun finishOnboarding() { prefs.onboarded = true; onboarded = true }
@@ -135,7 +138,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         val b = withContext(Dispatchers.IO) {
             Img.load(ctx, uri, 600)?.also { bmp -> FileOutputStream(logoFile).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
         }
-        if (b == null) toast("Image illisible") else { logo = b; fiche = null; toast("Logo enregistré : il apparaîtra sur les fiches") }
+        if (b == null) toast(tr("Image illisible")) else { logo = b; fiche = null; toast(tr("Logo enregistré : il apparaîtra sur les fiches")) }
     }
 
     fun clearLogo() { logoFile.delete(); logo = null; fiche = null }
@@ -162,17 +165,17 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     }
 
     fun testSheet() = viewModelScope.launch {
-        if (!prefs.sheetMode) { connected = false; toast("Mode local : les tags sont gardés sur ce téléphone."); refreshNumber(); return@launch }
-        val d = task("Connexion au Google Sheet…") { api.call("info").getJSONObject("data") } ?: run { connected = false; return@launch }
+        if (!prefs.sheetMode) { connected = false; toast(tr("Mode local : les tags sont gardés sur ce téléphone.")); refreshNumber(); return@launch }
+        val d = task(tr("Connexion au Google Sheet…")) { api.call("info").getJSONObject("data") } ?: run { connected = false; return@launch }
         connected = true
         nextNumber = d.optInt("nextNumber")
         if (savedRow == 0) form = form.copy(n = nextNumber.toString())
-        toast("Connecté · prochain tag N° $nextNumber")
+        toast(tr("Connecté · prochain tag N° {0}", nextNumber))
     }
 
     /** Importe les onglets regles / contacts / parametres du Sheet dans les Réglages. */
     fun importFromSheet() = viewModelScope.launch {
-        val d = task("Import depuis le Sheet…") { api.call("info").getJSONObject("data") } ?: return@launch
+        val d = task(tr("Import depuis le Sheet…")) { api.call("info").getJSONObject("data") } ?: return@launch
         val regles = d.optJSONArray("regles").objs().map {
             Regle(it.optString("categorie").ifBlank { it.optString("service") }, it.optString("etage").ifBlank { it.optString("zone") }, it.optString("responsable"))
         }
@@ -192,7 +195,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
             signature = p.optString("signature").replace("\\n", "\n").ifBlank { c.signature }
         )
         saveConfig(c)
-        toast("Importé : ${contacts.size} contact(s), ${regles.size} règle(s)")
+        toast(tr("Importé : {0} contact(s), {1} règle(s)", contacts.size, regles.size))
     }
 
     /* ---------- nouveau tag ---------- */
@@ -200,7 +203,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
 
     fun setPhoto(ctx: Context, uri: Uri) = viewModelScope.launch {
         val b = withContext(Dispatchers.IO) { Img.load(ctx, uri) }
-        if (b == null) toast("Image illisible") else { photo = b; fiche = null }
+        if (b == null) toast(tr("Image illisible")) else { photo = b; fiche = null }
     }
 
     fun suggestResp(service: String = form.service, zone: String = form.zone) {
@@ -212,8 +215,8 @@ class MainVm(app: Application) : AndroidViewModel(app) {
 
     fun aiFill(activity: Activity) = viewModelScope.launch {
         if (!requirePro()) return@launch
-        if (photo == null && note.isBlank()) { toast("Ajoutez une photo ou une note."); return@launch }
-        val r = task("L’IA analyse la photo…") {
+        if (photo == null && note.isBlank()) { toast(tr("Ajoutez une photo ou une note.")); return@launch }
+        val r = task(tr("L’IA analyse la photo…")) {
             val img = photo?.let { Img.toBase64(Img.scaleMax(it, 1280), 80) }
             Ai.parse(ProApi.ai(token(activity), Ai.prompt(note, cfg), img))
         } ?: return@launch
@@ -231,7 +234,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
             cible = D.plusDays(form.date, cfg.delai(grav).toLong()),
             resp = resp
         ))
-        toast("Champs remplis : relisez avant d’enregistrer.")
+        toast(tr("Champs remplis : relisez avant d’enregistrer."))
     }
 
     fun buildFiche(): Bitmap = Fiche.render(form, photo, cfg, logo).also { fiche = it }
@@ -241,21 +244,21 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         if (!l.isEmpty) learn = l
     }
 
-    fun acceptLearning(l: Learn) { saveConfig(Rules.apply(cfg, l)); learn = null; toast("Ajouté à vos réglages") }
+    fun acceptLearning(l: Learn) { saveConfig(Rules.apply(cfg, l)); learn = null; toast(tr("Ajouté à vos réglages")) }
 
     fun save() = viewModelScope.launch {
-        if (savedRow != 0) { toast("Déjà enregistré."); return@launch }
-        if (form.desc.isBlank()) { toast("La description est obligatoire."); return@launch }
+        if (savedRow != 0) { toast(tr("Déjà enregistré.")); return@launch }
+        if (form.desc.isBlank()) { toast(tr("La description est obligatoire.")); return@launch }
         if (prefs.sheetMode) {
             val body = JSONObject().put("tag", form.toApi())
             photo?.let { body.put("photo", Img.toBase64(Img.scaleMax(it, 1600), 88)) }
-            val d = task("Enregistrement dans le Sheet et Drive…") { api.call("add", body).getJSONObject("data") } ?: return@launch
+            val d = task(tr("Enregistrement dans le Sheet et Drive…")) { api.call("add", body).getJSONObject("data") } ?: return@launch
             savedRow = d.optInt("row")
             nextNumber = d.optInt("n") + 1
             edit(form.copy(n = d.optString("n"), row = savedRow, photo = d.optString("photo")))
-            toast("Tag N° ${form.n} enregistré dans le Sheet (ligne $savedRow)")
+            toast(tr("Tag N° {0} enregistré dans le Sheet (ligne {1})", form.n, savedRow))
         } else {
-            val saved = task("Enregistrement sur le téléphone…") {
+            val saved = task(tr("Enregistrement sur le téléphone…")) {
                 withContext(Dispatchers.IO) {
                     var t = local.add(form)
                     photo?.let { b ->
@@ -269,7 +272,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
             savedRow = saved.row
             nextNumber = (saved.n.toIntOrNull() ?: 0) + 1
             edit(form.copy(n = saved.n, row = saved.row, photo = saved.photo))
-            toast("Tag N° ${saved.n} enregistré sur le téléphone")
+            toast(tr("Tag N° {0} enregistré sur le téléphone", saved.n))
         }
         proposeLearning()
         if (open.isNotEmpty()) loadOpen()
@@ -283,36 +286,36 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     /* ---------- emails ---------- */
     private fun shortTitle(t: Tag): String {
         val place = t.empl.ifBlank { t.desc.take(60) }
-        return "Safety Tag N° ${t.n} – $place" + if (t.zone.isNotBlank()) " (${t.zone})" else ""
+        return tr("Safety Tag N° {0} – {1}", t.n, place) + if (t.zone.isNotBlank()) " (${t.zone})" else ""
     }
 
     private fun greeting(names: String): String {
         val list = Rules.splitNames(names).filter { "@" !in it }
-        return if (list.size == 1) "Bonjour ${list[0].split(" ").first()}," else "Bonjour à tous,"
+        return if (list.size == 1) tr("Bonjour {0},", list[0].split(" ").first()) else tr("Bonjour à tous,")
     }
 
     private fun signature(t: Tag) = cfg.signature.ifBlank { t.par }
 
     private fun openBody(t: Tag) = buildString {
         appendLine(greeting(t.resp)); appendLine()
-        appendLine("Suite au constat du ${D.day(t.date)}, un Safety Tag a été ouvert sous votre responsabilité :"); appendLine()
-        appendLine("Tag N° ${t.n} – ${t.empl}" + if (t.zone.isNotBlank()) ", ${t.zone}" else "")
-        appendLine("- Anomalie : ${t.desc}")
-        appendLine("- Gravité : ${t.grav}")
-        if (t.risque.isNotBlank()) appendLine("- Risque : ${t.risque}")
-        if (t.action.isNotBlank()) appendLine("- Action urgente : ${t.action}")
-        if (t.prop.isNotBlank()) appendLine("- Proposition : ${t.prop}")
-        appendLine("- Date cible : ${D.day(t.cible)}"); appendLine()
-        appendLine("Vous trouverez la fiche du tag en pièce jointe. Merci de nous informer dès la réalisation de l'action."); appendLine()
-        appendLine("Cordialement,"); append(signature(t))
+        appendLine(tr("Suite au constat du {0}, un Safety Tag a été ouvert sous votre responsabilité :", D.day(t.date))); appendLine()
+        appendLine(tr("Tag N° {0} – {1}", t.n, t.empl) + if (t.zone.isNotBlank()) ", ${t.zone}" else "")
+        appendLine(tr("- Anomalie : {0}", t.desc))
+        appendLine(tr("- Gravité : {0}", tr(t.grav)))
+        if (t.risque.isNotBlank()) appendLine(tr("- Risque : {0}", t.risque))
+        if (t.action.isNotBlank()) appendLine(tr("- Action urgente : {0}", t.action))
+        if (t.prop.isNotBlank()) appendLine(tr("- Proposition : {0}", t.prop))
+        appendLine(tr("- Date cible : {0}", D.day(t.cible))); appendLine()
+        appendLine(tr("Vous trouverez la fiche du tag en pièce jointe. Merci de nous informer dès la réalisation de l'action.")); appendLine()
+        appendLine(tr("Cordialement,")); append(signature(t))
     }
 
     private fun closeBody(t: Tag) = buildString {
-        appendLine("Bonjour,"); appendLine()
-        appendLine("Le Safety Tag N° ${t.n} (${t.empl}${if (t.zone.isNotBlank()) ", ${t.zone}" else ""}) est clôturé.")
-        appendLine("- Anomalie : ${t.desc}")
-        appendLine("- Responsable : ${t.resp}"); appendLine()
-        appendLine("Cordialement,"); append(signature(t))
+        appendLine(tr("Bonjour,")); appendLine()
+        appendLine(tr("Le Safety Tag N° {0} ({1}) est clôturé.", t.n, t.empl + if (t.zone.isNotBlank()) ", ${t.zone}" else ""))
+        appendLine(tr("- Anomalie : {0}", t.desc))
+        appendLine(tr("- Responsable : {0}", t.resp)); appendLine()
+        appendLine(tr("Cordialement,")); append(signature(t))
     }
 
     private fun sendMail(ctx: Context, toNames: String, ccNames: String, subject: String, body: String, bmp: Bitmap?, fileName: String) {
@@ -320,16 +323,16 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         val (cc0, miss2) = Rules.resolve(ccNames, cfg.personnes)
         val cc = cc0.filter { it !in to }
         val missing = (miss1 + miss2).distinct()
-        if (missing.isNotEmpty()) toast("Email inconnu pour : ${missing.joinToString(", ")} (Réglages › Personnes)")
+        if (missing.isNotEmpty()) toast(tr("Email inconnu pour : {0} (Réglages › Personnes)", missing.joinToString(", ")))
         val uri = bmp?.let { Share.savePng(ctx, it, fileName) }
         Share.email(ctx, to, cc, subject, body, uri, prefs.mailApp)
     }
 
     fun emailNew(ctx: Context) {
-        if (form.resp.isBlank()) { toast("Indiquez le responsable."); return }
+        if (form.resp.isBlank()) { toast(tr("Indiquez le responsable.")); return }
         val bmp = fiche ?: buildFiche()
         val name = "Fiche_Tag_${form.n}.png"
-        if (form.statut == "Clôturé") sendMail(ctx, cfg.toCloture, cfg.ccCloture, "Clôture " + shortTitle(form), closeBody(form), bmp, name)
+        if (form.statut == "Clôturé") sendMail(ctx, cfg.toCloture, cfg.ccCloture, tr("Clôture : {0}", shortTitle(form)), closeBody(form), bmp, name)
         else sendMail(ctx, form.resp, cfg.ccOuverture, shortTitle(form), openBody(form), bmp, name)
         if (savedRow == 0) proposeLearning()
     }
@@ -342,7 +345,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     /* ---------- tags ouverts ---------- */
     fun loadOpen() = viewModelScope.launch {
         val list = if (prefs.sheetMode)
-            task("Chargement des tags ouverts…") { api.call("list", JSONObject().put("status", "open")).getJSONArray("data").objs().map { Tag.fromApi(it) } }
+            task(tr("Chargement des tags ouverts…")) { api.call("list", JSONObject().put("status", "open")).getJSONArray("data").objs().map { Tag.fromApi(it) } }
         else withContext(Dispatchers.IO) { local.all().filter { it.statut != "Clôturé" } }
         if (list != null) open = list.reversed()
     }
@@ -355,11 +358,11 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     }.getOrNull()
 
     fun emailExisting(ctx: Context, t: Tag, closed: Boolean = false) = viewModelScope.launch {
-        val pic = task("Préparation de la fiche…") { photoOf(t) }
+        val pic = task(tr("Préparation de la fiche…")) { photoOf(t) }
         val tag = t.copy(statut = if (closed) "Clôturé" else t.statut, par = t.par.ifBlank { cfg.constatePar })
         val bmp = Fiche.render(tag, pic, cfg, logo)
         val name = "Fiche_Tag_${tag.n}.png"
-        if (closed) sendMail(ctx, cfg.toCloture, cfg.ccCloture, "Clôture " + shortTitle(tag), closeBody(tag), bmp, name)
+        if (closed) sendMail(ctx, cfg.toCloture, cfg.ccCloture, tr("Clôture : {0}", shortTitle(tag)), closeBody(tag), bmp, name)
         else sendMail(ctx, tag.resp, cfg.ccOuverture, shortTitle(tag), openBody(tag), bmp, name)
     }
 
@@ -368,7 +371,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         val ok = if (prefs.sheetMode) {
             val body = JSONObject().put("rows", JSONArray(rows))
             after?.let { body.put("photoAfter", Img.toBase64(Img.scaleMax(it, 1600), 88)) }
-            task("Clôture en cours…") { api.call("close", body) } != null
+            task(tr("Clôture en cours…")) { api.call("close", body) } != null
         } else {
             withContext(Dispatchers.IO) {
                 var path = ""
@@ -384,14 +387,14 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         if (!ok) return@launch
         val set = rows.toSet()
         open = open.filter { it.row !in set }
-        toast("${rows.size} tag(s) clôturé(s)")
+        toast(tr("{0} tag(s) clôturé(s)", rows.size))
         onDone()
     }
 
     fun updateResp(t: Tag, resp: String) = viewModelScope.launch {
         val nt: Tag
         if (prefs.sheetMode) {
-            nt = task("Mise à jour…") {
+            nt = task(tr("Mise à jour…")) {
                 Tag.fromApi(api.call("update", JSONObject().put("row", t.row).put("fields", JSONObject().put("resp", resp))).getJSONObject("data"))
             } ?: return@launch
         } else {
@@ -399,7 +402,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
             withContext(Dispatchers.IO) { local.update(nt) }
         }
         open = open.map { if (it.row == nt.row) nt else it }
-        toast("Responsable mis à jour")
+        toast(tr("Responsable mis à jour"))
     }
 
     /* ---------- Pro : tableau de bord, rapport PDF, relances ---------- */
@@ -407,7 +410,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
 
     fun loadAll() = viewModelScope.launch {
         val list = if (prefs.sheetMode)
-            task("Chargement des statistiques…") { api.call("list", JSONObject().put("status", "all")).getJSONArray("data").objs().map { Tag.fromApi(it) } }
+            task(tr("Chargement des statistiques…")) { api.call("list", JSONObject().put("status", "all")).getJSONArray("data").objs().map { Tag.fromApi(it) } }
         else withContext(Dispatchers.IO) { local.all() }
         if (list != null) { allTags = list; open = list.filter { it.statut != "Clôturé" }.reversed() }
     }
@@ -421,16 +424,16 @@ class MainVm(app: Application) : AndroidViewModel(app) {
     fun remind(ctx: Context, person: String, tags: List<Tag>) {
         if (!requirePro()) return
         val body = buildString {
-            appendLine(if (Rules.splitNames(person).size == 1) "Bonjour ${person.split(" ").first()}," else "Bonjour,"); appendLine()
-            appendLine("Les Safety Tags suivants sous votre responsabilité ont dépassé leur date cible :"); appendLine()
+            appendLine(if (Rules.splitNames(person).size == 1) tr("Bonjour {0},", person.split(" ").first()) else tr("Bonjour,")); appendLine()
+            appendLine(tr("Les Safety Tags suivants sous votre responsabilité ont dépassé leur date cible :")); appendLine()
             tags.sortedBy { D.parse(it.cible) }.forEach { t ->
-                appendLine("- N° ${t.n} (${t.zone.ifBlank { "—" }}) : ${t.desc}")
-                appendLine("  Date cible : ${D.day(t.cible)} · Gravité : ${t.grav}")
+                appendLine(tr("- N° {0} ({1}) : {2}", t.n, t.zone.ifBlank { "—" }, t.desc))
+                appendLine(tr("  Date cible : {0} · Gravité : {1}", D.day(t.cible), tr(t.grav)))
             }
-            appendLine(); appendLine("Merci de nous indiquer l’avancement ou la date de réalisation prévue."); appendLine()
-            appendLine("Cordialement,"); append(cfg.signature.ifBlank { cfg.constatePar })
+            appendLine(); appendLine(tr("Merci de nous indiquer l’avancement ou la date de réalisation prévue.")); appendLine()
+            appendLine(tr("Cordialement,")); append(cfg.signature.ifBlank { cfg.constatePar })
         }
-        sendMail(ctx, person, cfg.ccOuverture, "Relance : ${tags.size} Safety Tag(s) en retard", body, null, "")
+        sendMail(ctx, person, cfg.ccOuverture, tr("Relance : {0} Safety Tag(s) en retard", tags.size), body, null, "")
     }
 
     fun exportPdf(ctx: Context, list: List<Tag>) {
@@ -439,15 +442,15 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
         ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
             type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            putExtra(Intent.EXTRA_SUBJECT, "Rapport Safety Tags – ${D.day(D.now())}")
-        }, "Partager le rapport PDF"))
+            putExtra(Intent.EXTRA_SUBJECT, tr("Rapport Safety Tags – {0}", D.day(D.now())))
+        }, tr("Partager le rapport PDF")))
     }
 
     /* ---------- export / import ---------- */
     fun exportCsv(ctx: Context, list: List<Tag>) {
         fun q(s: String) = "\"" + s.replace("\"", "\"\"") + "\""
         val head = listOf("N°", "Date", "Date cible", "Type", "Gravité", "Zone", "Service", "Emplacement", "Description",
-            "Risque", "Action", "Proposition", "Statut", "Responsable")
+            "Risque principal", "Action urgente", "Proposition", "Statut", "Responsable").map { tr(it) }
         val csv = buildString {
             append('﻿'); appendLine(head.joinToString(";") { q(it) })
             list.forEach { t ->
@@ -459,7 +462,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
         ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
             type = "text/csv"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }, "Exporter les tags"))
+        }, tr("Exporter les tags")))
     }
 
     fun exportConfig(ctx: Context) {
@@ -470,14 +473,14 @@ class MainVm(app: Application) : AndroidViewModel(app) {
         val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
         ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
             type = "application/json"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }, "Partager les réglages"))
+        }, tr("Partager les réglages")))
     }
 
     fun importConfig(ctx: Context, uri: Uri) = viewModelScope.launch {
         val json = withContext(Dispatchers.IO) {
             runCatching { ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { JSONObject(it.readText()) } }.getOrNull()
         }
-        if (json == null) { toast("Fichier de réglages illisible"); return@launch }
+        if (json == null) { toast(tr("Fichier de réglages illisible")); return@launch }
         saveConfig(Config.fromJson(json))
         json.optString("logo").takeIf { it.isNotBlank() }?.let { b64 ->
             Img.fromBase64(b64)?.let { bmp ->
@@ -485,7 +488,7 @@ class MainVm(app: Application) : AndroidViewModel(app) {
                 logo = bmp
             }
         }
-        toast("Réglages importés")
+        toast(tr("Réglages importés"))
     }
 }
 

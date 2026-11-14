@@ -59,7 +59,7 @@ object Http {
 class Api(private val prefs: Prefs) {
     suspend fun call(action: String, body: JSONObject = JSONObject()): JSONObject {
         val url = prefs.url
-        if (!url.startsWith("https://")) throw IOException("Renseignez l’URL du script dans Réglages.")
+        if (!url.startsWith("https://")) throw IOException(tr("Renseignez l’URL du script dans Réglages."))
         body.put("action", action)
         body.put("token", prefs.token)
         return Http.postScript(url, body)
@@ -95,6 +95,7 @@ Note : "${note.ifBlank { "(aucune)" }}"
 Règles d'affectation connues :
 $rules
 Respecte les informations de la note (lieu, zone, responsable). N'invente pas de lieu précis ni de nom de personne.
+Rédige toutes les valeurs texte en ${L10n.aiLanguage()} (sauf les valeurs choisies dans les listes ci-dessous).
 Réponds UNIQUEMENT avec un objet JSON :
 {"type": ${choices(cfg.types)},
  "gravite": "Élevée"|"Moyenne"|"Faible",
@@ -195,7 +196,7 @@ object Share {
     }
 
     fun appLabel(ctx: Context, pkg: String): String = when (pkg) {
-        ASK -> "Demander à chaque fois"
+        ASK -> tr("Demander à chaque fois")
         else -> runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(pkg, 0)).toString() }
             .getOrDefault(if (pkg == OUTLOOK) "Outlook" else pkg)
     }
@@ -218,7 +219,7 @@ object Share {
             i.setPackage(app)
             ctx.startActivity(i)
         } else {
-            ctx.startActivity(Intent.createChooser(i, "Envoyer l’email"))
+            ctx.startActivity(Intent.createChooser(i, tr("Envoyer l’email")))
         }
     }
 
@@ -229,6 +230,6 @@ object Share {
             putExtra(Intent.EXTRA_TEXT, text)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        ctx.startActivity(Intent.createChooser(i, "Partager la fiche"))
+        ctx.startActivity(Intent.createChooser(i, tr("Partager la fiche")))
     }
 }

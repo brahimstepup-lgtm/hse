@@ -21,7 +21,7 @@ object Auth {
 
     /** Renvoie null si l'utilisateur a annulé. */
     suspend fun signIn(activity: Activity): GoogleUser? {
-        if (!configured) throw IOException("La connexion Google n’est pas encore activée dans cette version. Continuez sans compte.")
+        if (!configured) throw IOException(tr("La connexion Google n’est pas encore activée dans cette version. Continuez sans compte."))
         val option = GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_WEB_CLIENT_ID).build()
         val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
         return try {
@@ -34,7 +34,7 @@ object Auth {
         } catch (e: GetCredentialCancellationException) {
             null
         } catch (e: GetCredentialException) {
-            throw IOException("Connexion Google impossible : ${e.message ?: e.type}")
+            throw IOException(tr("Connexion Google impossible : {0}", e.message ?: e.type))
         }
     }
 

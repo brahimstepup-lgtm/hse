@@ -73,17 +73,17 @@ object Fiche {
     private fun info(x: Ctx, t: Tag, left: Float, w: Float, y0: Float): Float {
         var y = y0
         val cw = (w - 20f) / 2f
-        var h1 = col(x, "Date de constat", D.label(t.date), false, left, cw, y)
-        var h2 = col(x, "Date cible", D.day(t.cible), false, left + cw + 20f, cw, y)
+        var h1 = col(x, tr("Date de constat"), D.label(t.date), false, left, cw, y)
+        var h2 = col(x, tr("Date cible"), D.day(t.cible), false, left + cw + 20f, cw, y)
         y += maxOf(h1, h2) + 16f
-        h1 = col(x, "Zone", listOf(t.zone, t.service).filter { it.isNotBlank() }.joinToString(" · "), false, left, cw, y)
-        h2 = col(x, "Responsable", t.resp, true, left + cw + 20f, cw, y)
+        h1 = col(x, tr("Zone"), listOf(t.zone, t.service).filter { it.isNotBlank() }.joinToString(" · "), false, left, cw, y)
+        h2 = col(x, tr("Responsable"), t.resp, true, left + cw + 20f, cw, y)
         y += maxOf(h1, h2) + 16f
-        y += field(x, "Emplacement", t.empl, left, w, y) + 16f
-        y += field(x, "Description", t.desc, left, w, y) + 16f
-        y += field(x, "Risque principal", t.risque, left, w, y, box = true) + 16f
-        y += field(x, if (t.statut == "Clôturé") "Action réalisée" else "Action urgente", t.action, left, w, y, box = true) + 16f
-        y += field(x, "Proposition", t.prop, left, w, y, box = true, green = true)
+        y += field(x, tr("Emplacement"), t.empl, left, w, y) + 16f
+        y += field(x, tr("Description"), t.desc, left, w, y) + 16f
+        y += field(x, tr("Risque principal"), t.risque, left, w, y, box = true) + 16f
+        y += field(x, if (t.statut == "Clôturé") tr("Action réalisée") else tr("Action urgente"), t.action, left, w, y, box = true) + 16f
+        y += field(x, tr("Proposition"), t.prop, left, w, y, box = true, green = true)
         return y
     }
 
@@ -95,7 +95,7 @@ object Fiche {
     }
 
     fun render(t: Tag, photo: Bitmap?, cfg: Config, logo: Bitmap? = null): Bitmap {
-        val site = cfg.organisation.ifBlank { "Suivi des anomalies HSE" }
+        val site = cfg.organisation.ifBlank { tr("Suivi des anomalies HSE") }
         val footer = cfg.pied
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val top = 110f; val badgesH = 74f; val mainY = top + badgesH + 26f
@@ -123,7 +123,7 @@ object Fiche {
         }
         p.color = Color.WHITE; font(p, 40f, true, 0.05f); c.drawText("SAFETY TAG", tx, 58f, p)
         font(p, 18f, false); p.alpha = 230; c.drawText(site, tx, 88f, p); p.alpha = 255
-        font(p, 44f, true); val nt = "N° ${t.n.ifBlank { "—" }}"; val nw = p.measureText(nt) + 44f
+        font(p, 44f, true); val nt = tr("N° {0}", t.n.ifBlank { "—" }); val nw = p.measureText(nt) + 44f
         p.color = Color.WHITE; c.drawRoundRect(RectF(W - 36f - nw, 24f, W - 36f, 88f), 8f, 8f, p)
         p.color = RED; c.drawText(nt, W - 36f - nw + 22f, 72f, p)
 
@@ -131,11 +131,11 @@ object Fiche {
         p.color = Color.parseColor("#FAFAFA"); c.drawRect(0f, top, W, top + badgesH, p)
         p.color = Color.parseColor("#DDDDDD"); c.drawRect(0f, top + badgesH - 1f, W, top + badgesH, p)
         var bx = 36f; val by = top + 18f
-        bx += badge(c, p, bx, by, t.type.ifBlank { "Type" }, "#E3F2FD", "#0D47A1") + 14f
+        bx += badge(c, p, bx, by, t.type.ifBlank { tr("Type") }, "#E3F2FD", "#0D47A1") + 14f
         val g = when (t.grav) { "Élevée" -> "#FFCDD2" to "#B71C1C"; "Faible" -> "#DCEDC8" to "#33691E"; else -> "#FFE0B2" to "#E65100" }
-        bx += badge(c, p, bx, by, "Gravité : ${t.grav}", g.first, g.second) + 14f
+        bx += badge(c, p, bx, by, tr("Gravité : {0}", tr(t.grav)), g.first, g.second) + 14f
         val s = if (t.statut == "Clôturé") "#C8E6C9" to "#1B5E20" else "#FFCDD2" to "#B71C1C"
-        badge(c, p, bx, by, "Statut : ${t.statut}", s.first, s.second)
+        badge(c, p, bx, by, tr("Statut : {0}", tr(t.statut)), s.first, s.second)
 
         // photo
         val px = 36f; val py = mainY; val pw = 400f; val ph = 620f
@@ -149,13 +149,13 @@ object Fiche {
         } else {
             p.color = Color.parseColor("#ECEFF1"); c.drawRect(px, py, px + pw, py + ph, p)
             p.color = Color.parseColor("#90A4AE"); font(p, 20f, true); p.textAlign = Paint.Align.CENTER
-            c.drawText("Photo de constat", px + pw / 2f, py + ph / 2f, p); p.textAlign = Paint.Align.LEFT
+            c.drawText(tr("Photo de constat"), px + pw / 2f, py + ph / 2f, p); p.textAlign = Paint.Align.LEFT
         }
         c.restore()
         p.style = Paint.Style.STROKE; p.strokeWidth = 1f; p.color = Color.parseColor("#CCCCCC")
         c.drawRoundRect(RectF(px + .5f, py + .5f, px + pw - .5f, py + ph - .5f), 8f, 8f, p); p.style = Paint.Style.FILL
         p.color = Color.parseColor("#666666"); font(p, 14f, false); p.textAlign = Paint.Align.CENTER
-        c.drawText("Photo de constat — ${D.day(t.date)}", px + pw / 2f, py + ph + 20f, p); p.textAlign = Paint.Align.LEFT
+        c.drawText(tr("Photo de constat — {0}", D.day(t.date)), px + pw / 2f, py + ph + 20f, p); p.textAlign = Paint.Align.LEFT
 
         // informations
         info(Ctx(c, p), t, infoX, infoW, mainY)
@@ -163,7 +163,7 @@ object Fiche {
         // pied de page
         p.color = Color.parseColor("#263238"); c.drawRect(0f, footY, W, footY + 48f, p)
         p.color = Color.WHITE; font(p, 16f, false)
-        c.drawText("Constaté par : ${t.par.ifBlank { "—" }}", 36f, footY + 30f, p)
+        c.drawText(tr("Constaté par : {0}", t.par.ifBlank { "—" }), 36f, footY + 30f, p)
         p.textAlign = Paint.Align.RIGHT; c.drawText(footer, W - 36f, footY + 30f, p); p.textAlign = Paint.Align.LEFT
 
         // cadre
